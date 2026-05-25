@@ -1,2 +1,3 @@
 include src/mathpf/*.pyx
 include src/mathpf/*.pxd
+include src/mathpf/*.h
