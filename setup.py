@@ -7,7 +7,12 @@ extensions = [
         name="mathpf.avg_funcs",
         sources=["src/mathpf/avg_funcs.pyx"],
         include_dirs=[np.get_include()],
-    )
+    ),
+    Extension(
+        name="mathpf.mills",
+        sources=["src/mathpf/mills.pyx"],
+        include_dirs=[np.get_include(), "src/mathpf"],  # for _mills_coef.h
+    ),
 ]
 
 setup(
