@@ -17,7 +17,7 @@ Homepage = "https://github.com/PyFENG/MathPF"
 [tool.cibuildwheel]
 build = "cp310-* cp311-* cp312-* cp313-*"
 skip  = "*-musllinux*"
-test-requires = "pytest"
+test-requires = "pytest scipy"
 test-command = "pytest {project}/tests"
 
 [tool.cibuildwheel.linux]
