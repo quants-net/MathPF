@@ -52,11 +52,11 @@ def test_millsratio_scalar():
 
 
 def test_millsratio_d1_scalar():
-    assert _max_rel(mathpf.millsratio_d1, R1_ref, XS_POS) < 1e-11
+    assert _max_rel(mathpf.millsratio_d1, R1_ref, XS_ALL) < 1e-11   # any sign (reflection for x<0)
 
 
 def test_millsratio_d3_scalar():
-    assert _max_rel(mathpf.millsratio_d3, R3_ref, XS_POS) < 1e-10
+    assert _max_rel(mathpf.millsratio_d3, R3_ref, XS_ALL) < 1e-10   # any sign (reflection for x<0)
 
 
 def test_millsratio_rel_scalar():
@@ -82,10 +82,11 @@ def test_recovery_identity():
 
 
 def test_domain_validation():
+    # millsratio / _d1 / _d3 accept any x (reflection for x < 0)
+    for fn in (mathpf.millsratio, mathpf.millsratio_d1, mathpf.millsratio_d3):
+        assert np.isfinite(fn(-3.0))
+    # millsratio_rel_below1 is strict to [0, 1]
     with pytest.raises(ValueError):
-        mathpf.millsratio_d1(-0.5)
-    with pytest.raises(ValueError):
-        mathpf.millsratio_d3(-0.5)
+        mathpf.millsratio_rel_below1(-0.5)
     with pytest.raises(ValueError):
         mathpf.millsratio_rel_below1(1.5)
-    mathpf.millsratio(-3.0)            # R accepts any x (reflection)
