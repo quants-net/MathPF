@@ -90,3 +90,25 @@ def test_domain_validation():
         mathpf.millsratio_rel_below1(-0.5)
     with pytest.raises(ValueError):
         mathpf.millsratio_rel_below1(1.5)
+
+
+def test_negative_x_saturation():
+    """For x < X_NEG_MAX (=-37.5), the reflection branch's exp(x^2/2) would overflow.
+    R / R1 / R3 saturate to +inf deterministically rather than silently propagating
+    exp's overflow (which still produces +inf, but +inf - finite = +inf or NaN
+    depending on sign and downstream context)."""
+    # Just inside the safe range -- still finite (very large, but well below DBL_MAX)
+    for fn in (mathpf.millsratio, mathpf.millsratio_d1, mathpf.millsratio_d3):
+        assert np.isfinite(fn(-37.0)), f"{fn.__name__}(-37.0) should be finite (~1e297)"
+    # Past the saturation threshold -- explicit +inf
+    for x in (-37.5 - 1e-9, -40.0, -100.0, -1e10):
+        for fn in (mathpf.millsratio, mathpf.millsratio_d1, mathpf.millsratio_d3):
+            v = fn(x)
+            assert np.isposinf(v), f"{fn.__name__}({x}) should be +inf, got {v}"
+    # Vectorized: a single array containing safe + saturating arguments
+    x = np.array([-40.0, -37.0, 0.0, 3.0, 100.0])
+    out = mathpf.millsratio(x)
+    assert np.isposinf(out[0])
+    assert np.all(np.isfinite(out[1:]))
+    # Positive x is unaffected: x = 100 should give R(100) ~ 1/100 = 0.01
+    assert abs(out[-1] - 0.01) < 1e-3
