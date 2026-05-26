@@ -13,6 +13,11 @@ extensions = [
         sources=["src/mathpf/mills.pyx"],
         include_dirs=[np.get_include(), "src/mathpf"],  # for _mills_coef.h
     ),
+    Extension(
+        name="mathpf.mills_dd",
+        sources=["src/mathpf/mills_dd.pyx"],
+        include_dirs=[np.get_include(), "src/mathpf"],  # cimport from .mills
+    ),
 ]
 
 setup(
