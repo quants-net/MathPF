@@ -63,10 +63,12 @@ cdef double _R(double x) noexcept nogil:
     return (1.0 - ((((((((c[o + 7])*s + c[o + 6])*s + c[o + 5])*s + c[o + 4])*s + c[o + 3])*s + c[o + 2])*s + c[o + 1])*s + c[o])) / x
 
 cdef double _R1(double x) noexcept nogil:
-    """R1(x) = 1 - x R(x) = -R'(x), x >= 0."""
+    """R1(x) = 1 - x R(x) = -R'(x), any sign."""
     cdef double u, s, d
     cdef int i, o
     cdef const double* c
+    if x < 0.0:
+        return M_SQRT2PI * (-x) * exp(0.5 * x * x) + _R1(-x)
     if x <= 1.0:
         c = &C_Rrel[0]
         return 1.0 - x * (M_SQRT2PI_2 - x * (((((((((((((((c[14])*x + c[13])*x + c[12])*x + c[11])*x + c[10])*x + c[9])*x + c[8])*x + c[7])*x + c[6])*x + c[5])*x + c[4])*x + c[3])*x + c[2])*x + c[1])*x + c[0]))
@@ -93,10 +95,12 @@ cdef double _R1(double x) noexcept nogil:
     return (((((((c[o + 7])*s + c[o + 6])*s + c[o + 5])*s + c[o + 4])*s + c[o + 3])*s + c[o + 2])*s + c[o + 1])*s + c[o]
 
 cdef double _R3(double x) noexcept nogil:
-    """R3(x) = -R'''(x), x >= 0."""
+    """R3(x) = -R'''(x), any sign."""
     cdef double u, s, d
     cdef int i, o
     cdef const double* c
+    if x < 0.0:
+        return M_SQRT2PI * (-x) * (x*x + 3.0) * exp(0.5 * x * x) + _R3(-x)
     if x >= XCF_R3[0]:
         u = x * x
         if u > U_MAX:
@@ -131,12 +135,10 @@ def millsratio(x):
     return float(out[0]) if scalar else out.reshape(x_arr.shape)
 
 def millsratio_d1(x):
-    """-R'(x) = 1 - x R(x); scalar or ndarray, x >= 0."""
+    """-R'(x) = 1 - x R(x); scalar or ndarray, any x."""
     cdef double[::1] f, o
     cdef Py_ssize_t i
     x_arr = np.asarray(x, dtype=np.float64)
-    if np.any(x_arr < 0.0):
-        raise ValueError('millsratio_d1 requires x >= 0.')
     scalar = x_arr.ndim == 0
     flat = np.ascontiguousarray(x_arr.ravel())
     out = np.empty_like(flat)
@@ -147,12 +149,10 @@ def millsratio_d1(x):
     return float(out[0]) if scalar else out.reshape(x_arr.shape)
 
 def millsratio_d3(x):
-    """-R'''(x); scalar or ndarray, x >= 0."""
+    """-R'''(x); scalar or ndarray, any x."""
     cdef double[::1] f, o
     cdef Py_ssize_t i
     x_arr = np.asarray(x, dtype=np.float64)
-    if np.any(x_arr < 0.0):
-        raise ValueError('millsratio_d3 requires x >= 0.')
     scalar = x_arr.ndim == 0
     flat = np.ascontiguousarray(x_arr.ravel())
     out = np.empty_like(flat)
