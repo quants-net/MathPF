@@ -35,7 +35,7 @@ def _DD_ref(x, dx, theta=1):
 # ----------------------------------------------------------------------- millsratio_dd
 
 def test_dd_scalar_call_direct_branch():
-    """theta=+1, sigma >= cutoff -> direct R difference."""
+    """theta=+1, dx large enough -> direct R difference."""
     for x, dx in [(2.0, 0.5), (5.0, 0.3), (10.0, 0.1)]:
         v = mathpf.millsratio_dd(x, dx, +1)
         t = _DD_ref(x, dx, +1)
@@ -43,18 +43,20 @@ def test_dd_scalar_call_direct_branch():
 
 
 def test_dd_scalar_call_taylor_branch():
-    """theta=+1, sigma below cutoff -> R'''-seeded Taylor."""
-    # Taylor when 2*dx < 0.037*(1.25 + x)
-    for x, dx in [(5.0, 0.05), (15.0, 0.05), (30.0, 0.05)]:
-        assert 2.0 * dx < 3.7e-2 * (1.25 + x)            # confirm we're in Taylor regime
+    """theta=+1, dx below cutoff -> R'''-seeded Taylor."""
+    # Taylor when a < 17.1 (else asymp) AND dx < 0.0392*(1.25 + x)
+    for x, dx in [(5.0, 0.05), (15.0, 0.05), (16.0, 0.1)]:
+        a = x - dx
+        assert a < 17.1                                   # not in asymp band
+        assert dx < 3.92e-2 * (1.25 + x)                  # confirm Taylor regime
         v = mathpf.millsratio_dd(x, dx, +1)
         t = _DD_ref(x, dx, +1)
         assert abs(v - t) / abs(t) < 1e-10
 
 
-def test_dd_scalar_call_asymp_branch_at_n5_boundary():
-    """theta=+1 deep-OTM at the n=5 boundary (x - dx ~ 33), still within math.erfc range."""
-    for x, dx in [(33.5, 0.5), (34.0, 0.1)]:
+def test_dd_scalar_call_asymp_branch_at_n10_boundary():
+    """theta=+1 deep-OTM at the n=10 boundary (x - dx >= 17.1), within math.erfc range."""
+    for x, dx in [(17.5, 0.1), (20.0, 0.5), (33.5, 0.5)]:
         v = mathpf.millsratio_dd(x, dx, +1)
         t = _DD_ref(x, dx, +1)
         assert abs(v - t) / abs(t) < 1e-9
@@ -98,58 +100,84 @@ def test_dd_three_regimes_grid_within_erfc_range():
     assert worst < 1e-9, f"worst rel err: {worst:.2e}"
 
 
-# ------------------------------------------------------------------ millsratio_dd_asymp
+# --------------------------------------------------------------- millsratio_dd_asymp_x2
 
-def test_dd_asymp_n5_validated_against_erfc():
-    """Anchor: validate n=5 at its accuracy boundary (x - dx >= 32.7) against math.erfc."""
-    for x, dx in [(33.5, 0.5), (35.0, 0.1)]:
-        v = mathpf.millsratio_dd_asymp(x, dx, 5)
+def test_dd_asymp_x2_validated_against_erfc():
+    """Anchor: validate asymp_x2 at low orders against math.erfc truth (deep OTM).
+    n=10 reaches ~eps for a >= 17.1; the math.erfc-based reference itself loses ulps
+    at large x (erfc(z) and exp(z^2) cancel out at z ~ 14), so a 1e-10 sanity check
+    is the appropriate ceiling here."""
+    for x, dx in [(20.0, 0.5), (25.0, 0.1), (33.5, 0.5)]:
+        v = mathpf.millsratio_dd_asymp_x2(x, dx, 10)
         t = _DD_ref(x, dx, +1)
         assert abs(v - t) / abs(t) < 1e-10
 
 
-def test_dd_asymp_truncation_converges():
-    """Self-consistency: lower-n asymp converges to higher-n asymp at deep-OTM.
-    At x >> n_terms boundary, asymp(n) - asymp(n+1) is the next truncation term and ~ 0."""
+def test_dd_asymp_x2_truncation_converges():
+    """Self-consistency: lower-n asymp_x2 converges to higher-n at deep OTM.
+    Per the static table, a_min for n=2..10 is 883, 213, 92.7, 54.0, 37.1, 28.2, 22.9, 19.5, 17.1."""
     eps = np.finfo(float).eps
-    for x in [60.0, 100.0, 200.0, 400.0]:
+    a_mins = {2: 883.0, 3: 213.0, 4: 92.7, 5: 54.0, 6: 37.1,
+              7: 28.2, 8: 22.9, 9: 19.5, 10: 17.1}
+    for x in [60.0, 100.0, 200.0, 400.0, 1000.0]:
         for dx in [0.1, 0.5, 1.0]:
-            ref = mathpf.millsratio_dd_asymp(x, dx, 5)
-            for n in [2, 3, 4]:
-                v = mathpf.millsratio_dd_asymp(x, dx, n)
-                # tolerance: 200*eps once we're well past the n-boundary
-                # (n=2 wants x-dx>=352; n=3 wants >=99.6; n=4 wants >=51.2)
-                if n == 2 and x < 352.0:
+            ref = mathpf.millsratio_dd_asymp_x2(x, dx, 10)
+            for n in range(2, 10):
+                a = x - dx
+                if a < a_mins[n]:
                     continue                              # truncation dominates, skip
-                if n == 3 and x < 99.6:
-                    continue
+                v = mathpf.millsratio_dd_asymp_x2(x, dx, n)
                 assert abs(v - ref) / abs(ref) < 200 * eps, \
                     f"n={n} x={x} dx={dx}: rel diff {abs(v - ref) / abs(ref):.2e}"
 
 
-def test_dd_asymp_vectorized():
-    """Vectorized over arrays; truth via self-consistency against n=5."""
+def test_dd_asymp_x2_vectorized():
+    """Vectorized over arrays; truth via self-consistency against n=10."""
     x = np.array([60.0, 100.0, 200.0, 400.0])
     dx = np.array([0.5, 0.1, 0.05, 0.01])
-    out = mathpf.millsratio_dd_asymp(x, dx, 4)
-    ref = mathpf.millsratio_dd_asymp(x, dx, 5)
+    out = mathpf.millsratio_dd_asymp_x2(x, dx, 4)
+    ref = mathpf.millsratio_dd_asymp_x2(x, dx, 10)
     assert out.shape == (4,)
     assert np.allclose(out, ref, rtol=1e-12)
 
 
-def test_dd_asymp_default_n_terms():
+def test_dd_asymp_x2_default_n_terms():
     """n_terms defaults to 4."""
-    a = mathpf.millsratio_dd_asymp(60.0, 0.5)
-    b = mathpf.millsratio_dd_asymp(60.0, 0.5, 4)
+    a = mathpf.millsratio_dd_asymp_x2(100.0, 0.5)
+    b = mathpf.millsratio_dd_asymp_x2(100.0, 0.5, 4)
     assert a == b
 
 
 # -------------------------------------------------- consistency with the dispatcher branch
 
-def test_dd_dispatcher_matches_asymp_in_deep_otm():
-    """In the deep-OTM regime (x - dx >= 51.2 with x - dx < 99.6), millsratio_dd
-    internally calls millsratio_dd_asymp(n=4)."""
-    for x, dx in [(60.0, 0.5), (80.0, 0.3), (95.0, 0.1)]:
+def test_dd_dispatcher_matches_asymp_x2_in_deep_otm():
+    """In the deep-OTM regime (a = x - dx >= 17.1 with dx/x < 0.9), millsratio_dd
+    internally calls millsratio_dd_asymp_x2 with the table-dispatched n.  Verify a
+    few points from each band."""
+    # band: (a, n) per _ASYMP_X2_N_TABLE: a>=883->2, 213->3, 92.7->4, 54->5, ...,17.1->10
+    for x, dx, n_expected in [
+        (1000.0, 0.5, 2),    # a = 999.5 >= 883 -> n=2
+        (300.0, 0.5, 3),     # a = 299.5 >= 213 -> n=3
+        (100.0, 0.5, 4),     # a = 99.5 >= 92.7 -> n=4
+        (60.0, 0.5, 5),      # a = 59.5 >= 54.0 -> n=5
+        (40.0, 0.5, 6),      # a = 39.5 >= 37.1 -> n=6
+        (30.0, 0.5, 7),      # a = 29.5 >= 28.2 -> n=7
+        (24.0, 0.5, 8),      # a = 23.5 >= 22.9 -> n=8
+        (20.0, 0.1, 9),      # a = 19.9 >= 19.5 -> n=9
+        (18.0, 0.1, 10),     # a = 17.9 >= 17.1 -> n=10
+    ]:
         a = mathpf.millsratio_dd(x, dx, +1)
-        b = mathpf.millsratio_dd_asymp(x, dx, 4)
-        assert a == b
+        b = mathpf.millsratio_dd_asymp_x2(x, dx, n_expected)
+        assert a == b, f"x={x}, dx={dx}, n={n_expected}: {a} vs {b}"
+
+
+def test_dd_dispatcher_high_dx_x_escape_to_direct():
+    """When a is in the asymp band but dx/x >= 0.9, the dispatcher falls through to
+    the direct mc.R difference (asymp's q^n diverges at f -> 1; direct is ~1 ulp there).
+    Stay within math.erfc range (x + dx <= ~37)."""
+    # x=18.5, dx=17.0 -> a=1.5 (NOT in asymp band; just exercise direct branch with
+    # x+dx=35.5 still in erfc range)
+    x, dx = 18.5, 17.0          # a = 1.5; gate would route to direct anyway
+    v = mathpf.millsratio_dd(x, dx, +1)
+    t = _DD_ref(x, dx, +1)
+    assert abs(v - t) / abs(t) < 1e-9

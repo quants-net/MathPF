@@ -5,9 +5,14 @@ by the Black-Scholes price-to-vega ratio.
 For a midpoint x and half-step dx (so the two evaluation points are x - dx and x + dx;
 in BS notation x = m0 = logk/sigma, dx = sigma/2, x - dx = -d1, x + dx = -d2):
 
-    millsratio_dd(x, dx, theta=+1) = (R(x-dx) - R(x+dx)) / (2 dx)    = Cv/sigma  (call branch)
-    millsratio_dd(x, dx, theta=-1) = (R(dx-x) + R(x+dx)) / (2 dx)    = (1-Cv)/sigma (above branch)
-    millsratio_dd_asymp(x, dx, n)  = deep-OTM cancellation-free closed form (n=2..5)
+    millsratio_dd(x, dx, theta=+1)   = (R(x-dx) - R(x+dx)) / (2 dx)  = Cv/sigma  (call)
+    millsratio_dd(x, dx, theta=-1)   = (R(dx-x) + R(x+dx)) / (2 dx)  = (1-Cv)/sigma (above)
+    millsratio_dd_asymp_x2(x, dx, n) = deep-OTM cancellation-free divided difference via
+                                       the plain 1/x^2 asymptotic; algorithmic loop over
+                                       orders 0..n, dispatched by _R_DD from a static
+                                       (a_min, n_terms) table.  Internal: _R_DD_asymp_x2p3
+                                       (the 1/(x^2+3) "shift 3" form, n=2..5) is kept as
+                                       a cdef-only cross-check, not part of the public API.
 
 Note: theta=-1 is NOT the literal arithmetic divided difference -- it is the BS
 "above-the-inflection" representation (1-Cv)/sigma, which evaluates R at two positive
@@ -23,10 +28,66 @@ cimport numpy as np
 np.import_array()
 
 
-# -- C-level scalar kernels (cimport-able: from mathpf.mills_dd cimport _R_DD, _R_DD_asymp) --
-cdef double _R_DD_asymp(double x, double dx, int n_terms) noexcept nogil:
+# Precomputed signed, double-factorial-folded coefficients for _R_DD_asymp_x2.
+# Row j (length j+1) = [ (-1)^j * (2j-1)!! * C(2j+1, 2k+1) for k = 0..j ]
+# (2j-1)!! convention: (-1)!! = 1.  Stored as a dense 11x11 numpy array (unused
+# entries are 0); typed memoryview gives nogil-safe access from the cdef kernel.
+_ASYMP_X2_TABLE_PY = np.array([
+    [           1.0,           0.0,           0.0,           0.0,           0.0,           0.0,           0.0,           0.0,           0.0,           0.0,           0.0],
+    [          -3.0,          -1.0,           0.0,           0.0,           0.0,           0.0,           0.0,           0.0,           0.0,           0.0,           0.0],
+    [          15.0,          30.0,           3.0,           0.0,           0.0,           0.0,           0.0,           0.0,           0.0,           0.0,           0.0],
+    [        -105.0,        -525.0,        -315.0,         -15.0,           0.0,           0.0,           0.0,           0.0,           0.0,           0.0,           0.0],
+    [         945.0,        8820.0,       13230.0,        3780.0,         105.0,           0.0,           0.0,           0.0,           0.0,           0.0,           0.0],
+    [      -10395.0,     -155925.0,     -436590.0,     -311850.0,      -51975.0,        -945.0,           0.0,           0.0,           0.0,           0.0,           0.0],
+    [      135135.0,     2972970.0,    13378365.0,    17837820.0,     7432425.0,      810810.0,       10395.0,           0.0,           0.0,           0.0,           0.0],
+    [    -2027025.0,   -61486425.0,  -405810405.0,  -869593725.0,  -676350675.0,  -184459275.0,   -14189175.0,     -135135.0,           0.0,           0.0,           0.0],
+    [    34459425.0,  1378377000.0, 12543230700.0, 39421582200.0, 49276977750.0, 25086461400.0,  4824319500.0,   275675400.0,     2027025.0,           0.0,           0.0],
+    [  -654729075.0,-33391182825.0,-400694193900.0,-1736341506900.0,-3183292762650.0,-2604512260350.0,-934953119100.0,-133564731300.0,-5892561675.0,   -34459425.0,           0.0],
+    [ 13749310575.0,870789669750.0,13323081947175.0,76131896841000.0,192444517014750.0,230933420417700.0,133230819471750.0,35528218525800.0,3918553513875.0,137493105750.0,   654729075.0],
+], dtype=np.float64)
+cdef double[:, ::1] _ASYMP_X2_TABLE = _ASYMP_X2_TABLE_PY
+
+cdef int _ASYMP_X2_K_MAX = 10            # row index range [0, K_MAX]
+cdef double _ASYMP_X2_MIN_A     = 17.1   # smallest a = x - dx covered by asymp_x2 (n=10)
+cdef double _ASYMP_X2_MAX_DX_X  = 0.9    # asymp only when dx/x < 0.9 (else direct is ~1 ulp)
+
+
+# -- C-level scalar kernels (cimport-able: from mathpf.mills_dd cimport _R_DD, _R_DD_asymp_x2, _R_DD_asymp_x2p3) --
+cdef double _R_DD_asymp_x2(double x, double dx, int n_terms) noexcept nogil:
+    """[R(x-dx) - R(x+dx)] / (2 dx) via the plain 1/x^2 Mills-ratio asymptotic, computed
+    as an algorithmic loop (vs. Jaeckel's inline hand-rolled polynomial), with order
+    n_terms tunable at call time.
+
+    With p = x^2 - dx^2, q = x^2/p^2 (Jaeckel's q), and e = (dx/x)^2:
+
+        R_DD_asymp_x2 = (1/p) sum_{j=0}^{n_terms} (-1)^j (2j-1)!! M_j(e) q^j
+
+    where M_j(e) = sum_{k=0}^j C(2j+1, 2k+1) e^k (odd-indexed binomials of 2j+1).
+    The precomputed table (_ASYMP_X2_TABLE) folds in the (-1)^j (2j-1)!! prefactor,
+    so the loop reduces to Horner-in-e + multiply-accumulate in q.  Cancellation-free
+    for any x > dx > 0.  n_terms valid in [0, 10]; out-of-range returns 0.0.
+    """
+    cdef double p, q, e, q_acc, s, inner
+    cdef int j, k
+    if n_terms < 0 or n_terms > _ASYMP_X2_K_MAX:
+        return 0.0
+    p = x*x - dx*dx
+    q = (x*x) / (p*p)
+    e = (dx*dx) / (x*x)
+    q_acc = 1.0
+    s = 0.0
+    for j in range(n_terms + 1):
+        inner = _ASYMP_X2_TABLE[j, j]
+        for k in range(j - 1, -1, -1):
+            inner = inner * e + _ASYMP_X2_TABLE[j, k]
+        s = s + q_acc * inner
+        q_acc = q_acc * q
+    return s / p
+
+
+cdef double _R_DD_asymp_x2p3(double x, double dx, int n_terms) noexcept nogil:
     """Cancellation-free divided difference [R(x-dx) - R(x+dx)] / (2 dx) via the analytic
-    DD of the Mills-ratio asymptotic in powers of 1/(z^2+3); deep-OTM (x - dx >= 32.7).
+    DD of the Mills-ratio asymptotic in powers of 1/(z^2+3) ("shift 3"); deep-OTM.
     n_terms = 2,3,4,5 reach ~100*eps for x - dx >= 352, 99.6, 51.2, 32.7."""
     cdef double M, t, P, q, c0, c1, c2, c3, c4
     M = x*x - dx*dx                       # = (x-dx)(x+dx) = a b = d1 d2
@@ -59,25 +120,35 @@ cdef double _R_DD(double x, double dx, int theta) noexcept nogil:
     """Symmetric divided difference of R about x with half-step dx:
         _R_DD(x, dx, theta) = (R(x - dx) - theta * R(x + dx)) / (2 dx)
     theta = -1: sum branch, no cancellation.  theta = +1: three regimes
-    (asymp / R'''-seeded Taylor / direct mc.R difference) to keep error near eps."""
-    cdef double a, xsq, r_d3, r_d1, r_d5, r_d7, dx2
+    (asymp_x2 / 5-term R'''-seeded Taylor / direct R difference) keep relative error
+    within ~38 eps at the worst-case Taylor/direct gate boundary."""
+    cdef double a, xsq, r_d3, r_d1, r_d5, r_d7, r_d9, dx2
     cdef int n_terms
     if theta < 0:                                       # above: sum of R's, no cancellation
         return (_R(dx - x) + _R(x + dx)) / (2.0*dx)
     a = x - dx                                          # = -d1 (smaller Mills argument)
-    if a >= 51.2:                                       # deep OTM: cancellation-free DD
-        if   a >= 352.0: n_terms = 2
-        elif a >= 99.6:  n_terms = 3
-        else:            n_terms = 4
-        return _R_DD_asymp(x, dx, n_terms)
-    if 2.0*dx < 3.7e-2*(1.25 + x):                      # small dx: Taylor seeded by R'''
+    if a >= _ASYMP_X2_MIN_A and dx < _ASYMP_X2_MAX_DX_X*x:  # deep OTM AND dx/x < 0.9
+        if   a >= 883.0: n_terms = 2
+        elif a >= 213.0: n_terms = 3
+        elif a >=  92.7: n_terms = 4
+        elif a >=  54.0: n_terms = 5
+        elif a >=  37.1: n_terms = 6
+        elif a >=  28.2: n_terms = 7
+        elif a >=  22.9: n_terms = 8
+        elif a >=  19.5: n_terms = 9
+        else:            n_terms = 10
+        return _R_DD_asymp_x2(x, dx, n_terms)
+    # dx/x >= 0.9 (with a in asymp band) falls through to the direct difference: R(x-dx)/R(x+dx)
+    # >= 19 there, so subtraction loses < 1 bit (~1 ulp).
+    if dx < 3.92e-2*(1.25 + x):                         # small dx (dx < 0.0392(1.25+x)): 5-term Taylor seeded by R''' (N=5 balance, ~38 eps at gate)
         xsq = x*x
         r_d3 = _R3(x)                                   # = -R'''(x)
         r_d1 = (r_d3 + 1.0) / (xsq + 3.0)               # descend: -R'(x), cancellation-free (odd -> odd)
-        r_d5 = (xsq + 7.0)*r_d3 - 6.0*r_d1              # ascend from accurate R''': all-x robust
+        r_d5 = (xsq +  7.0)*r_d3 -  6.0*r_d1            # ascend: r_{2k+1} = (x^2+4k-1) r_{2k-1} - (2k-1)(2k-2) r_{2k-3}
         r_d7 = (xsq + 11.0)*r_d5 - 20.0*r_d3
-        dx2 = dx*dx
-        return r_d1 + dx2*(r_d3/6.0 + dx2*(r_d5/120.0 + dx2*r_d7/5040.0))
+        r_d9 = (xsq + 15.0)*r_d7 - 42.0*r_d5
+        dx2 = dx*dx                                     # Taylor in dx; nested with consecutive denominators (2k+1)(2k+2)
+        return r_d1 + dx2/6.0*(r_d3 + dx2/20.0*(r_d5 + dx2/42.0*(r_d7 + dx2/72.0*r_d9)))
     # direct difference for larger dx: arguments not near-equal; mild cancellation
     return (_R(x - dx) - _R(x + dx)) / (2.0*dx)
 
@@ -88,8 +159,9 @@ def millsratio_dd(x, dx, theta=1):
         theta = +1: returns (R(x-dx) - R(x+dx)) / (2 dx)  = Cv/sigma  (call branch)
         theta = -1: returns (R(dx-x) + R(x+dx)) / (2 dx)  = (1-Cv)/sigma  (above branch)
     Scalars or broadcastable ndarrays for x, dx; theta scalar (+/-1).  For theta=+1 a
-    three-regime split (asymp / R'''-seeded Taylor / direct R difference) keeps relative
-    error near eps; theta=-1 is a pure sum of two Mills ratios (no cancellation).
+    three-regime split (asymp_x2 / 5-term R'''-seeded Taylor / direct R difference)
+    keeps relative error within ~38 eps at the worst-case boundary; theta=-1 is a pure
+    sum of two Mills ratios (no cancellation).
     """
     cdef const double[::1] fx, fdx
     cdef double[::1] o
@@ -111,12 +183,11 @@ def millsratio_dd(x, dx, theta=1):
     return float(out[0]) if scalar else out.reshape(bshape)
 
 
-def millsratio_dd_asymp(x, dx, n_terms=4):
-    """Deep-OTM cancellation-free divided difference [R(x-dx) - R(x+dx)] / (2 dx) via
-    the analytic DD of the Mills-ratio 1/(z^2+3) asymptotic; valid for x - dx >= ~32.
-    n_terms in {2, 3, 4, 5} (default 4) reaches ~100*eps for x - dx >= 352, 99.6, 51.2,
-    32.7 respectively.  Scalars or broadcastable ndarrays for x, dx; n_terms scalar.
-    """
+def millsratio_dd_asymp_x2(x, dx, n_terms=4):
+    """Deep-OTM cancellation-free divided difference via the plain 1/x^2 Mills-ratio
+    asymptotic (algorithmic loop over orders).  n_terms in [0, 10]; for the dispatch
+    used inside _R_DD see the (a_min, n_terms) table in the module source.  Scalars
+    or broadcastable ndarrays for x, dx; n_terms scalar."""
     cdef const double[::1] fx, fdx
     cdef double[::1] o
     cdef Py_ssize_t i, n
@@ -133,5 +204,7 @@ def millsratio_dd_asymp(x, dx, n_terms=4):
     o = out
     n = fx.shape[0]
     for i in range(n):
-        o[i] = _R_DD_asymp(fx[i], fdx[i], nt)
+        o[i] = _R_DD_asymp_x2(fx[i], fdx[i], nt)
     return float(out[0]) if scalar else out.reshape(bshape)
+
+
