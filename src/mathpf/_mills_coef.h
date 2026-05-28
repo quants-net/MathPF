@@ -9,9 +9,9 @@ static const double M_SQRT2PI_2 = 1.2533141373155001;  /* R(0) = sqrt(pi/2) */
 static const double U_MAX       = 1.3407807929942596e+154;  /* sqrt(DBL_MAX); R1/R3 -> 0 beyond */
 static const double X_NEG_MAX   = -37.5;  /* x < this: R/R1/R3 reflection's exp(x^2/2) overflows; saturate to +inf */
 
-static const double XCF_R[6] = {11.4, 15.1, 24.1, 59.3, 548.0, 67000000.0};
-static const double XCF_R1[5] = {14.5, 21.2, 41.0, 165.0, 12800.0};
-static const double XCF_R3[4] = {25.4, 50.5, 210.0, 17300.0};
+static const double XCF_R[7]  = {9.5, 11.4, 15.1, 24.1, 59.3, 548.0, 67000000.0};   /* bridge n=12, then n=10,8,6,4,2,0 */
+static const double XCF_R1[6] = {11.5, 14.5, 21.2, 41.0, 165.0, 12800.0};            /* bridge n=12, then n=10,8,6,4,2  */
+static const double XCF_R3[5] = {17.1, 25.4, 50.5, 210.0, 17300.0};                  /* bridge n=12, then n=10,8,6,4    */
 
 static const double N_FRAC_R1 = 2.5;
 static const int    NSEG_R1   = 32;

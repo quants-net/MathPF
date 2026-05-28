@@ -12,9 +12,9 @@ cdef extern from "_mills_coef.h":
     const double M_SQRT2PI_2
     const double U_MAX
     const double X_NEG_MAX
-    const double XCF_R[6]
-    const double XCF_R1[5]
-    const double XCF_R3[4]
+    const double XCF_R[7]
+    const double XCF_R1[6]
+    const double XCF_R3[5]
     const double N_FRAC_R1
     const int NSEG_R1
     const int TMAX_R1
@@ -25,37 +25,73 @@ cdef extern from "_mills_coef.h":
     const double C_R1[208]
     const double C_R3[405]
 
-# -- C-level scalar kernels (cimport-able: from mathpf.mills cimport _R, _R1, _R3, _Rrel_below1) --
+# -- C-level scalar kernels (cimport-able: from mathpf.mills cimport _R, _R1, _R3, _R013_CF, _Rrel_below1) --
 cdef double _Rrel_below1(double x) noexcept nogil:
     """(sqrt(pi/2) - R(x))/x on [0,1] (deg-14); R = M_SQRT2PI_2 - x*Rrel_below1."""
     cdef const double* c = &C_Rrel[0]
     return ((((((((((((((c[14])*x + c[13])*x + c[12])*x + c[11])*x + c[10])*x + c[9])*x + c[8])*x + c[7])*x + c[6])*x + c[5])*x + c[4])*x + c[3])*x + c[2])*x + c[1])*x + c[0]
 
+cdef double _R013_CF(double x, int n, int d) noexcept nogil:
+    """Shared CF convergent for R / -R' / -R''' at order n in {2,4,6,8,10,12}, d in {0,1,3}.
+
+        d = 0:  R^[n](x)        = N/(x D)               (Mills ratio)
+        d = 1:  -R'^[n](x)      = Delta/D               (alias R1^[n])
+        d = 3:  -R'''^[n](x)    = Gamma/D               (alias R3^[n]; n>=4)
+
+    Uses the shifted variable u := x^2 + 3 (natural Mills CF structure); evaluates the
+    two smaller polynomials Delta(u) (deg n/2-1) and Gamma(u) (deg n/2-2), then recovers
+        D = u * Delta - Gamma         (one mult, one sub)
+        N = D - Delta                 (pure sub; N = (u-1)*Delta - Gamma = D - Delta)
+    Total cost: (n/2-1) + (n/2-2) Horner mults + 1 combine mult = (n-2) mults + 1 div.
+    Gamma coefficients have the leading 6 baked in (current line); the un-baked form
+    `gamma = 6.0 * (...)` is kept as a comment for traceability.
+    """
+    cdef double u, delta, gamma, D
+    u = x*x + 3.0
+    if n == 2:                                                  # Delta=1, Gamma=0 (degenerate); D = u, N = u-1
+        if d == 0: return (u - 1.0) / (x * u)
+        if d == 1: return 1.0 / u
+        return 0.0                                              # -R'''^[2] vanishes
+    if n == 4:
+        delta = 4.0 + u
+        gamma = 6.0                                                                                                  # = 6.0
+    elif n == 6:
+        delta = 12.0 + u*(12.0 + u)
+        gamma = 48.0 + u*6.0                                                                                          # = 6.0*(8.0 + u)
+    elif n == 8:
+        delta = -24.0 + u*(114.0 + u*(24.0 + u))
+        gamma = 324.0 + u*(120.0 + u*6.0)                                                                             # = 6.0*(54.0 + u*(20.0 + u))
+    elif n == 10:
+        delta = -1248.0 + u*(936.0 + u*(426.0 + u*(40.0 + u)))
+        gamma = 1728.0 + u*(1812.0 + u*(216.0 + u*6.0))                                                               # = 6.0*(288.0 + u*(302.0 + u*(36.0 + u)))
+    else:  # n == 12
+        delta = -22320.0 + u*(4932.0 + u*(6816.0 + u*(1116.0 + u*(60.0 + u))))
+        gamma = -1080.0 + u*(24768.0 + u*(5472.0 + u*(336.0 + u*6.0)))                                                # = 6.0*(-180.0 + u*(4128.0 + u*(912.0 + u*(56.0 + u))))
+    D = u*delta - gamma                                         # = (x^2+3)*Delta - Gamma
+    if d == 1: return delta / D                                 # -R'^[n] = Delta/D
+    if d == 3: return gamma / D                                 # -R'''^[n] = Gamma/D
+    return (D - delta) / (x * D)                                # d == 0: R^[n] = N/(xD), N = D - Delta
+
 cdef double _R(double x) noexcept nogil:
     """Mills ratio R(x) = N(-x)/n(x); any sign.  Saturates to +inf for x < X_NEG_MAX."""
-    cdef double u, s, d
+    cdef double s, d
     cdef int i, o
     cdef const double* c
     if x < 0.0:
-        if x < X_NEG_MAX:                                  # exp(x^2/2) overflow -> saturate
+        if x < X_NEG_MAX:                                       # exp(x^2/2) overflow -> saturate
             return INFINITY
         return M_SQRT2PI * exp(0.5 * x * x) - _R(-x)
     if x <= 1.0:
         c = &C_Rrel[0]
         return M_SQRT2PI_2 - x * (((((((((((((((c[14])*x + c[13])*x + c[12])*x + c[11])*x + c[10])*x + c[9])*x + c[8])*x + c[7])*x + c[6])*x + c[5])*x + c[4])*x + c[3])*x + c[2])*x + c[1])*x + c[0])
-    if x >= XCF_R[0]:
-        u = x * x
-        if x >= XCF_R[5]:  # n=0 convergent
-            return 1.0 / x
-        if x >= XCF_R[4]:  # n=2 convergent
-            return (2.0 + u) / (x*(3.0 + u))
-        if x >= XCF_R[3]:  # n=4 convergent
-            return (8.0 + u*(9.0 + u)) / (x*(15.0 + u*(10.0 + u)))
-        if x >= XCF_R[2]:  # n=6 convergent
-            return (48.0 + u*(87.0 + u*(20.0 + u))) / (x*(105.0 + u*(105.0 + u*(21.0 + u))))
-        if x >= XCF_R[1]:  # n=8 convergent
-            return (384.0 + u*(975.0 + u*(345.0 + u*(35.0 + u)))) / (x*(945.0 + u*(1260.0 + u*(378.0 + u*(36.0 + u)))))
-        return (3840.0 + u*(12645.0 + u*(6090.0 + u*(938.0 + u*(54.0 + u))))) / (x*(10395.0 + u*(17325.0 + u*(6930.0 + u*(990.0 + u*(55.0 + u))))))  # n=10 (bridge)
+    if x >= XCF_R[0]:                                           # tiered CF via shared R013_CF
+        if x >= XCF_R[6]: return 1.0 / x                        # n=0
+        if x >= XCF_R[5]: return _R013_CF(x,  2, 0)
+        if x >= XCF_R[4]: return _R013_CF(x,  4, 0)
+        if x >= XCF_R[3]: return _R013_CF(x,  6, 0)
+        if x >= XCF_R[2]: return _R013_CF(x,  8, 0)
+        if x >= XCF_R[1]: return _R013_CF(x, 10, 0)
+        return            _R013_CF(x, 12, 0)                    # bridge
     d = N_FRAC_R1 + x
     i = <int>(NSEG_R1 * (x - 1.0) / d)
     if i >= TMAX_R1:
@@ -67,29 +103,24 @@ cdef double _R(double x) noexcept nogil:
 
 cdef double _R1(double x) noexcept nogil:
     """R1(x) = 1 - x R(x) = -R'(x); any sign.  Saturates to +inf for x < X_NEG_MAX."""
-    cdef double u, s, d
+    cdef double s, d
     cdef int i, o
     cdef const double* c
     if x < 0.0:
-        if x < X_NEG_MAX:                                  # exp(x^2/2) overflow -> saturate
+        if x < X_NEG_MAX:
             return INFINITY
         return M_SQRT2PI * (-x) * exp(0.5 * x * x) + _R1(-x)
     if x <= 1.0:
         c = &C_Rrel[0]
         return 1.0 - x * (M_SQRT2PI_2 - x * (((((((((((((((c[14])*x + c[13])*x + c[12])*x + c[11])*x + c[10])*x + c[9])*x + c[8])*x + c[7])*x + c[6])*x + c[5])*x + c[4])*x + c[3])*x + c[2])*x + c[1])*x + c[0]))
     if x >= XCF_R1[0]:
-        u = x * x
-        if u > U_MAX:
-            return 0.0
-        if x >= XCF_R1[4]:  # n=2 convergent
-            return 1.0 / (3.0 + u)
-        if x >= XCF_R1[3]:  # n=4 convergent
-            return (7.0 + u) / (15.0 + u*(10.0 + u))
-        if x >= XCF_R1[2]:  # n=6 convergent
-            return (57.0 + u*(18.0 + u)) / (105.0 + u*(105.0 + u*(21.0 + u)))
-        if x >= XCF_R1[1]:  # n=8 convergent
-            return (561.0 + u*(285.0 + u*(33.0 + u))) / (945.0 + u*(1260.0 + u*(378.0 + u*(36.0 + u))))
-        return (6555.0 + u*(4680.0 + u*(840.0 + u*(52.0 + u)))) / (10395.0 + u*(17325.0 + u*(6930.0 + u*(990.0 + u*(55.0 + u)))))  # n=10 (bridge)
+        if x*x > U_MAX: return 0.0
+        if x >= XCF_R1[5]: return _R013_CF(x,  2, 1)
+        if x >= XCF_R1[4]: return _R013_CF(x,  4, 1)
+        if x >= XCF_R1[3]: return _R013_CF(x,  6, 1)
+        if x >= XCF_R1[2]: return _R013_CF(x,  8, 1)
+        if x >= XCF_R1[1]: return _R013_CF(x, 10, 1)
+        return             _R013_CF(x, 12, 1)                   # bridge
     d = N_FRAC_R1 + x
     i = <int>(NSEG_R1 * (x - 1.0) / d)
     if i >= TMAX_R1:
@@ -101,24 +132,20 @@ cdef double _R1(double x) noexcept nogil:
 
 cdef double _R3(double x) noexcept nogil:
     """R3(x) = -R'''(x); any sign.  Saturates to +inf for x < X_NEG_MAX."""
-    cdef double u, s, d
+    cdef double s, d
     cdef int i, o
     cdef const double* c
     if x < 0.0:
-        if x < X_NEG_MAX:                                  # exp(x^2/2) overflow -> saturate
+        if x < X_NEG_MAX:
             return INFINITY
         return M_SQRT2PI * (-x) * (x*x + 3.0) * exp(0.5 * x * x) + _R3(-x)
     if x >= XCF_R3[0]:
-        u = x * x
-        if u > U_MAX:
-            return 0.0
-        if x >= XCF_R3[3]:  # n=4 convergent
-            return 6.0 / (15.0 + u*(10.0 + u))
-        if x >= XCF_R3[2]:  # n=6 convergent
-            return 6.0*(11.0 + u) / (105.0 + u*(105.0 + u*(21.0 + u)))
-        if x >= XCF_R3[1]:  # n=8 convergent
-            return 6.0*(123.0 + u*(26.0 + u)) / (945.0 + u*(1260.0 + u*(378.0 + u*(36.0 + u))))
-        return 6.0*(1545.0 + u*(545.0 + u*(45.0 + u))) / (10395.0 + u*(17325.0 + u*(6930.0 + u*(990.0 + u*(55.0 + u)))))  # n=10 (bridge)
+        if x*x > U_MAX: return 0.0
+        if x >= XCF_R3[4]: return _R013_CF(x,  4, 3)
+        if x >= XCF_R3[3]: return _R013_CF(x,  6, 3)
+        if x >= XCF_R3[2]: return _R013_CF(x,  8, 3)
+        if x >= XCF_R3[1]: return _R013_CF(x, 10, 3)
+        return             _R013_CF(x, 12, 3)                   # bridge
     d = N_FRAC_R3 + x
     i = <int>(x / d * NSEG_R3)
     s = ((NSEG_R3 - i) * x - i * N_FRAC_R3) / d
