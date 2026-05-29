@@ -1,5 +1,8 @@
-# Cython generated C files
+# Cython-generated C/C++ files (kept out of source; the .pyx is the truth)
 src/mathpf/*.c
+src/mathpf/*.cpp
+# Hand-written C++ kernels live under _kernels/ and ARE tracked:
+!src/mathpf/_kernels/*.cpp
 
 # Compiled extensions
 *.so

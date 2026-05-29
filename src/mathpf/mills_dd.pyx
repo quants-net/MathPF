@@ -1,4 +1,5 @@
 # cython: language_level=3, boundscheck=False, wraparound=False, cdivision=True
+# distutils: language = c++
 """Symmetric divided differences of the Mills ratio R(x) = N(-x)/n(x).
 
 For a midpoint x and half-step dx (so the two evaluation points are x - dx and x + dx):
