@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "mathpf"
 dynamic = ["version"]
-description = "Numerically stable math utility functions for quantitative finance"
+description = "Numerically stable special functions and primitives (Mills ratio, normalised moment averages, etc.)"
 requires-python = ">=3.10"
 dependencies = ["numpy>=1.21"]
 

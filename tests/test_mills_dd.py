@@ -1,10 +1,11 @@
-"""Tests for mathpf.mills_dd: Mills-ratio divided differences for BS price-to-vega.
+"""Tests for mathpf.mills_dd: symmetric divided differences of the Mills ratio.
 
 Stdlib-only reference (matches test_mills.py convention; no scipy/mpmath):
   R(x) = sqrt(pi/2) * erfcx(x/sqrt(2)),  erfcx(z) = exp(z^2) * erfc(z).
 math.exp(z^2) overflows around z ~ 26.6 (z^2 > log(DBL_MAX)), so x ~ 37.6 is the
-upper limit for the math.erfc-based truth.  Deeper-OTM tests use self-consistency
-(asymp at lower n converges to asymp at higher n) instead of an external truth.
+upper limit for the math.erfc-based truth.  Deeper-asymptotic tests use self-
+consistency (asymp at lower n converges to asymp at higher n) instead of an
+external truth.
 """
 import math
 import numpy as np
@@ -55,7 +56,7 @@ def test_dd_scalar_call_taylor_branch():
 
 
 def test_dd_scalar_call_asymp_branch_at_n8_boundary():
-    """theta=+1 deep-OTM at the n=8 boundary (x - dx >= 21.2), within math.erfc range."""
+    """theta=+1 deep-asymptotic at the n=8 boundary (x - dx >= 21.2), within math.erfc range."""
     for x, dx in [(22.0, 0.1), (25.0, 0.5), (33.5, 0.5)]:
         v = mathpf.millsratio_dd(x, dx, +1)
         t = _DD_ref(x, dx, +1)
@@ -63,7 +64,7 @@ def test_dd_scalar_call_asymp_branch_at_n8_boundary():
 
 
 def test_dd_scalar_above_branch():
-    """theta=-1: BS above-inflection form (R(dx-x) + R(x+dx))/(2 dx), no cancellation."""
+    """theta=-1: sum branch (R(dx-x) + R(x+dx))/(2 dx), no cancellation."""
     for x, dx in [(0.5, 0.3), (1.0, 0.8), (3.0, 0.2)]:
         v = mathpf.millsratio_dd(x, dx, -1)
         t = _DD_ref(x, dx, -1)
@@ -103,7 +104,7 @@ def test_dd_three_regimes_grid_within_erfc_range():
 # --------------------------------------------------------------- millsratio_dd_cf
 
 def test_dd_cf_validated_against_erfc():
-    """Anchor: validate CF DD at low orders against math.erfc truth (deep OTM).
+    """Anchor: validate CF DD at low orders against math.erfc truth (deep asymptotic).
     n=8 reaches ~eps for a >= 21.2; the math.erfc-based reference itself loses ulps
     at large x (erfc(z) and exp(z^2) cancel out at z ~ 14), so a 1e-10 sanity check
     is the appropriate ceiling here."""
@@ -114,7 +115,7 @@ def test_dd_cf_validated_against_erfc():
 
 
 def test_dd_cf_truncation_converges():
-    """Self-consistency: lower-n CF DD converges to higher-n at deep OTM.
+    """Self-consistency: lower-n CF DD converges to higher-n at deep asymptotic.
     Per the even-only XCF_R1 dispatch, a_min for n in {2, 4, 6, 8} is
     12800, 165, 41, 21.2 (CF rate (n+1)!/a^(2n) ~ eps)."""
     eps = np.finfo(float).eps
@@ -150,8 +151,8 @@ def test_dd_cf_default_n_terms():
 
 # -------------------------------------------------- consistency with the dispatcher branch
 
-def test_dd_dispatcher_matches_cf_in_deep_otm():
-    """In the deep-OTM regime (a = x - dx >= 21.2 with dx/x < 0.9), millsratio_dd
+def test_dd_dispatcher_matches_cf_in_deep_asymp():
+    """In the deep-asymptotic regime (a = x - dx >= 21.2 with dx/x < 0.9), millsratio_dd
     internally calls millsratio_dd_cf with the dispatched n.  Verify a representative
     point from each band of the XCF_R1-aligned dispatch."""
     # band: (a, n) per the dispatch ladder in _R_DD: a>=12800->2, 165->4, 41->6, 21.2->8
