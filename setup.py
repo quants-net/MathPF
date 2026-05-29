@@ -24,9 +24,10 @@ _MILLS_DD_SRC = ["src/mathpf/_kernels/mills.cpp", "src/mathpf/_kernels/mills_dd.
 # fail test_pyref_consistency.  MSVC's default /fp:precise already prevents
 # contraction across expressions, but we set it explicitly for clarity.
 if sys.platform == "win32":
-    _FP_FLAGS = ["/fp:precise"]
+    # /std:c++17 required by `inline constexpr` variables in _mills_coef.h
+    _FP_FLAGS = ["/fp:precise", "/std:c++17"]
 else:
-    _FP_FLAGS = ["-ffp-contract=off"]
+    _FP_FLAGS = ["-ffp-contract=off", "-std=c++17"]
 
 extensions = [
     Extension(
