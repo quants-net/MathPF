@@ -57,10 +57,12 @@ cdef double _R_DD_CF(double x, double dx, int n_terms) noexcept nogil:
         P^[a]_{k+1} = a P^[a]_k + k P^[a]_{k-1}   (similarly P^[b])
 
     seeded by V_0 = 0, V_1 = 1, T_1 = -1, T_2 = a^2 + b^2 + 1.  The final slope is
-    V_n / (P^[a]_n P^[b]_n).  a b = x^2 - dx^2 and a^2 + b^2 = 2(x^2 + dx^2) are
-    computed cancellation-free in the (x, dx) parameterisation.
+    V_n / (P^[a]_n P^[b]_n).  The setup quantities a b and a^2 + b^2 are formed
+    directly from the already-computed a, b -- one fewer multiply than via
+    (x, dx), and cancellation-safe at dx -> x by Sterbenz on (x - dx) (the
+    explicit x^2 - dx^2 form would lose precision proportional to 1/(1-(dx/x)^2)).
     """
-    cdef double a, b, ab, s2, ab2
+    cdef double a, b, ab, s2
     cdef double V_p, V_c, V_n, T_p, T_c, T_n
     cdef double Pa_p, Pa_c, Pa_n, Pb_p, Pb_c, Pb_n
     cdef int k
@@ -68,16 +70,15 @@ cdef double _R_DD_CF(double x, double dx, int n_terms) noexcept nogil:
     b = x + dx
     if n_terms == 0:
         return 1.0 / (a * b)
-    ab  = x*x - dx*dx                                   # = a b, cancellation-free in (x, dx)
-    s2  = 2.0 * (x*x + dx*dx)                           # = a^2 + b^2
-    ab2 = 2.0 * ab                                       # 2 a b for the T recurrence
+    ab  = a * b                                          # = x^2 - dx^2; Sterbenz-safe at dx -> x via the exact (x - dx)
+    s2  = a*a + b*b                                      # = 2 (x^2 + dx^2); one fewer mult than 2.0 * (x*x + dx*dx)
     V_p,  V_c  = 1.0,  ab - 1.0                          # V_1, V_2
     T_p,  T_c  = -1.0, s2 + 1.0                          # T_1, T_2
     Pa_p, Pa_c = a, a*a + 1.0                            # P^[a]_1, P^[a]_2
     Pb_p, Pb_c = b, b*b + 1.0                            # P^[b]_1, P^[b]_2
     for k in range(2, n_terms + 1):
         V_n  = ab * V_c + k * (k * V_p + T_c)
-        T_n  = s2 * V_c + k * (ab2 * V_p + (k - 1) * T_p)
+        T_n  = s2 * V_c + k * (2.0 * ab * V_p + (k - 1) * T_p)   # 2 a b V_p inlined (compiler hoists 2*ab as loop-invariant)
         Pa_n = a * Pa_c + k * Pa_p
         Pb_n = b * Pb_c + k * Pb_p
         V_p,  V_c  = V_c,  V_n
