@@ -13,7 +13,7 @@ dependencies = ["numpy>=1.21"]
 dev = ["mpmath>=1.3", "pytest"]                  # for tools/ (coefficient refit) and the test suite
 
 [project.urls]
-Homepage = "https://github.com/PyFENG/MathPF"
+Homepage = "https://github.com/quants-net/MathPF"
 
 [tool.setuptools_scm]
 

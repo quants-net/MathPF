@@ -1,3 +1,4 @@
+import sys
 from setuptools import setup, Extension, find_packages
 from Cython.Build import cythonize
 import numpy as np
@@ -14,6 +15,19 @@ _KERNEL_INCLUDES = [np.get_include(), "src/mathpf", "src/mathpf/_kernels"]
 _MILLS_SRC    = ["src/mathpf/_kernels/mills.cpp"]
 _MILLS_DD_SRC = ["src/mathpf/_kernels/mills.cpp", "src/mathpf/_kernels/mills_dd.cpp"]
 
+# Disable FMA contraction so the C++ kernel evaluates Horner / multiply-add
+# sequences with the same rounding profile as the Python _pyref implementation
+# (which has no FMA at the language level).  This is what restores strict
+# bit-equality between the compiled binding and _pyref on platforms where the
+# compiler aggressively fuses 'a*b + c' into a single FMA -- in particular Clang
+# on Apple Silicon (macos-14 arm64), which caused the v0.7.0 cibuildwheel run to
+# fail test_pyref_consistency.  MSVC's default /fp:precise already prevents
+# contraction across expressions, but we set it explicitly for clarity.
+if sys.platform == "win32":
+    _FP_FLAGS = ["/fp:precise"]
+else:
+    _FP_FLAGS = ["-ffp-contract=off"]
+
 extensions = [
     Extension(
         name="mathpf.avg_funcs",
@@ -25,12 +39,14 @@ extensions = [
         sources=["src/mathpf/mills.pyx"] + _MILLS_SRC,
         include_dirs=_KERNEL_INCLUDES,
         language="c++",
+        extra_compile_args=_FP_FLAGS,
     ),
     Extension(
         name="mathpf.mills_dd",
         sources=["src/mathpf/mills_dd.pyx"] + _MILLS_DD_SRC,
         include_dirs=_KERNEL_INCLUDES,
         language="c++",
+        extra_compile_args=_FP_FLAGS,
     ),
 ]
 
