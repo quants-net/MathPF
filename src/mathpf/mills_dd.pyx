@@ -7,7 +7,7 @@ For a midpoint x and half-step dx (so the two evaluation points are x - dx and x
     millsratio_dd(x, dx, theta=-1) = (R(dx-x) + R(x+dx)) / (2 dx)  (sum branch; first
                                      argument reflected so both R-evaluations land on
                                      positive arguments)
-    millsratio_dd_cf(x, dx, n)     = deep-OTM cancellation-free divided difference via
+    millsratio_dd_cf(x, dx, n)     = deep-asymptotic cancellation-free divided difference via
                                      the coupled (V, T, Pa, Pb) recurrence on the
                                      depth-n CF convergent of R; algorithmic loop with
                                      no precomputed coefficient table, table-free.
@@ -25,7 +25,7 @@ _ASYMP_X2_MIN_A from 14.2 to 22.9 (the asymp branch now fires much less frequent
 the table's amortised cost no longer paid for itself, so the dispatch was replaced with
 the cancellation-free CF recurrence (slightly more multiplies per call, but no table
 and only one division -- and at the asymp band's low frequency the per-call cost is in
-the noise).  See BSIV-Algorithm.tex for the analytic background of both algorithms.
+the noise).
 """
 from .mills cimport _R, _R3, _R013_CF
 import numpy as np
@@ -94,7 +94,7 @@ cdef double _R_DD(double x, double dx, int theta) noexcept nogil:
     theta = -1: sum branch, no cancellation.  theta = +1: three regimes
     (CF asymp / 5-term R'''-seeded Taylor / direct R difference) keep relative error
     bounded across the (x, dx) plane (overall worst ~64 eps, set by the Taylor branch's
-    truncation at its gate corner).  See BSIV-Algorithm.tex for the dispatch analysis."""
+    truncation at its gate corner)."""
     cdef double a, u, r_d3, r_d1, r_d5, r_d7, r_d9, dx2
     if theta < 0:                                       # above: sum of R's, no cancellation
         return (_R(dx - x) + _R(x + dx)) / (2.0*dx)
@@ -155,7 +155,7 @@ def millsratio_dd(x, dx, theta=1):
 
 
 def millsratio_dd_cf(x, dx, n_terms=4):
-    """Deep-OTM cancellation-free divided difference via the (V, T, P^a, P^b) CF
+    """Deep-asymptotic cancellation-free divided difference via the (V, T, P^a, P^b) CF
     recurrence (table-free, algorithmic loop).  n_terms >= 0 supported; for the dispatch
     thresholds used inside _R_DD, see the (a_min, n_terms) ladder in _R_DD's source.
     Scalars or broadcastable ndarrays for x, dx; n_terms scalar.
