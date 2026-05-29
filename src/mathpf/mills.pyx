@@ -31,12 +31,25 @@ cdef double _Rrel_below1(double x) noexcept nogil:
     cdef const double* c = &C_Rrel[0]
     return ((((((((((((((c[14])*x + c[13])*x + c[12])*x + c[11])*x + c[10])*x + c[9])*x + c[8])*x + c[7])*x + c[6])*x + c[5])*x + c[4])*x + c[3])*x + c[2])*x + c[1])*x + c[0]
 
-cdef double _R013_CF(double x, int n, int d) noexcept nogil:
+cdef double _R013_CF(double x_or_u, int n, int d) noexcept nogil:
     """Shared CF convergent for R / -R' / -R''' at order n in {2,4,6,8,10,12}, d in {0,1,3}.
 
-        d = 0:  R^[n](x)        = N/(x D)               (Mills ratio)
-        d = 1:  -R'^[n](x)      = Delta/D               (alias R1^[n])
-        d = 3:  -R'''^[n](x)    = Gamma/D               (alias R3^[n]; n>=4)
+    Parameter ``x_or_u`` is interpreted polymorphically by ``d`` (u := x^2 + 3 is the
+    natural shifted variable of the Mills CF -- see body):
+
+        d = 0:  x_or_u = x          -> R^[n](x)       = N/(x D)         (Mills ratio)
+        d = 1:  x_or_u = x*x + 3    -> -R'^[n](x)     = Delta/D         (R1^[n])
+        d = 3:  x_or_u = x*x + 3    -> -R'''^[n](x)   = Gamma/D         (R3^[n]; n>=4)
+
+    The d=1 / d=3 paths depend only on u, so accepting u directly skips both the
+    ``x*x`` and the ``+ 3.0`` inside the kernel.  This is a true win because the
+    d=1/d=3 callers (R1, R3 dispatchers, _R_DD's Taylor branch) need u anyway --
+    for the U_MAX overflow guard (where u and x*x differ by 3, negligible at the
+    saturation threshold) and for the Taylor descent denominator and ascent
+    recurrence (which rewrites cleanly as (u+4), (u+8), (u+12) for r5/r7/r9).
+    The d=0 path keeps x because R^[n] has 1/x outside the polynomial.  The
+    ``if d == 0`` branches below are compile-time-constant at every call site
+    and are dead-code-eliminated.
 
     Uses the shifted variable u := x^2 + 3 (natural Mills CF structure); evaluates the
     two smaller polynomials Delta(u) (deg n/2-1) and Gamma(u) (deg n/2-2), then recovers
@@ -47,9 +60,12 @@ cdef double _R013_CF(double x, int n, int d) noexcept nogil:
     `gamma = 6.0 * (...)` is kept as a comment for traceability.
     """
     cdef double u, delta, gamma, D
-    u = x*x + 3.0
+    if d == 0:
+        u = x_or_u*x_or_u + 3.0                                 # arg is x; form u inside
+    else:
+        u = x_or_u                                              # arg is already u = x^2 + 3
     if n == 2:                                                  # Delta=1, Gamma=0 (degenerate); D = u, N = u-1
-        if d == 0: return (u - 1.0) / (x * u)
+        if d == 0: return (u - 1.0) / (x_or_u * u)              # arg is x
         if d == 1: return 1.0 / u
         return 0.0                                              # -R'''^[2] vanishes
     if n == 4:
@@ -70,7 +86,7 @@ cdef double _R013_CF(double x, int n, int d) noexcept nogil:
     D = u*delta - gamma                                         # = (x^2+3)*Delta - Gamma
     if d == 1: return delta / D                                 # -R'^[n] = Delta/D
     if d == 3: return gamma / D                                 # -R'''^[n] = Gamma/D
-    return (D - delta) / (x * D)                                # d == 0: R^[n] = N/(xD), N = D - Delta
+    return (D - delta) / (x_or_u * D)                           # d == 0: R^[n] = N/(xD), N = D - Delta; arg is x
 
 cdef double _R(double x) noexcept nogil:
     """Mills ratio R(x) = N(-x)/n(x); any sign.  Saturates to +inf for x < X_NEG_MAX."""
@@ -103,7 +119,7 @@ cdef double _R(double x) noexcept nogil:
 
 cdef double _R1(double x) noexcept nogil:
     """R1(x) = 1 - x R(x) = -R'(x); any sign.  Saturates to +inf for x < X_NEG_MAX."""
-    cdef double s, d
+    cdef double s, d, u
     cdef int i, o
     cdef const double* c
     if x < 0.0:
@@ -114,13 +130,14 @@ cdef double _R1(double x) noexcept nogil:
         c = &C_Rrel[0]
         return 1.0 - x * (M_SQRT2PI_2 - x * (((((((((((((((c[14])*x + c[13])*x + c[12])*x + c[11])*x + c[10])*x + c[9])*x + c[8])*x + c[7])*x + c[6])*x + c[5])*x + c[4])*x + c[3])*x + c[2])*x + c[1])*x + c[0]))
     if x >= XCF_R1[0]:
-        if x*x > U_MAX: return 0.0
-        if x >= XCF_R1[5]: return _R013_CF(x,  2, 1)
-        if x >= XCF_R1[4]: return _R013_CF(x,  4, 1)
-        if x >= XCF_R1[3]: return _R013_CF(x,  6, 1)
-        if x >= XCF_R1[2]: return _R013_CF(x,  8, 1)
-        if x >= XCF_R1[1]: return _R013_CF(x, 10, 1)
-        return             _R013_CF(x, 12, 1)                   # bridge
+        u = x*x + 3.0                                           # kernel's shifted variable; shared with U_MAX guard and _R013_CF
+        if u > U_MAX: return 0.0                                # +3 shift in threshold is invisible (U_MAX >> 3 at saturation x ~ 26)
+        if x >= XCF_R1[5]: return _R013_CF(u,  2, 1)
+        if x >= XCF_R1[4]: return _R013_CF(u,  4, 1)
+        if x >= XCF_R1[3]: return _R013_CF(u,  6, 1)
+        if x >= XCF_R1[2]: return _R013_CF(u,  8, 1)
+        if x >= XCF_R1[1]: return _R013_CF(u, 10, 1)
+        return             _R013_CF(u, 12, 1)                   # bridge
     d = N_FRAC_R1 + x
     i = <int>(NSEG_R1 * (x - 1.0) / d)
     if i >= TMAX_R1:
@@ -132,7 +149,7 @@ cdef double _R1(double x) noexcept nogil:
 
 cdef double _R3(double x) noexcept nogil:
     """R3(x) = -R'''(x); any sign.  Saturates to +inf for x < X_NEG_MAX."""
-    cdef double s, d
+    cdef double s, d, u
     cdef int i, o
     cdef const double* c
     if x < 0.0:
@@ -140,12 +157,13 @@ cdef double _R3(double x) noexcept nogil:
             return INFINITY
         return M_SQRT2PI * (-x) * (x*x + 3.0) * exp(0.5 * x * x) + _R3(-x)
     if x >= XCF_R3[0]:
-        if x*x > U_MAX: return 0.0
-        if x >= XCF_R3[4]: return _R013_CF(x,  4, 3)
-        if x >= XCF_R3[3]: return _R013_CF(x,  6, 3)
-        if x >= XCF_R3[2]: return _R013_CF(x,  8, 3)
-        if x >= XCF_R3[1]: return _R013_CF(x, 10, 3)
-        return             _R013_CF(x, 12, 3)                   # bridge
+        u = x*x + 3.0                                           # kernel's shifted variable; shared with U_MAX guard and _R013_CF
+        if u > U_MAX: return 0.0                                # +3 shift in threshold is invisible (U_MAX >> 3 at saturation)
+        if x >= XCF_R3[4]: return _R013_CF(u,  4, 3)
+        if x >= XCF_R3[3]: return _R013_CF(u,  6, 3)
+        if x >= XCF_R3[2]: return _R013_CF(u,  8, 3)
+        if x >= XCF_R3[1]: return _R013_CF(u, 10, 3)
+        return             _R013_CF(u, 12, 3)                   # bridge
     d = N_FRAC_R3 + x
     i = <int>(x / d * NSEG_R3)
     s = ((NSEG_R3 - i) * x - i * N_FRAC_R3) / d
