@@ -72,10 +72,12 @@ def main(argv):
                    help="Write tests/_ref_table.py.  Without this, print to stdout.")
     args = p.parse_args(argv)
 
-    # x grid: m = 0..40 at step 0.5; full grid for R, R1, R3 (defined on R+),
-    # restricted to [0, 1] for R_rel (cancellation-free near-zero form).
-    xs_full = [0.5 * m for m in range(0, 41)]   # 0, 0.5, 1.0, ..., 20.0
-    xs_rel  = [0.0, 0.5, 1.0]                     # R_rel valid range
+    # x grids:
+    #   - R, R1, R3 (defined on R+): m = 0..40 at step 0.5 (41 nodes, x in [0, 20])
+    #   - R_rel (cancellation-free near-zero form): k = 0..20 at step 0.05
+    #     (21 nodes, x in [0, 1] -- finer because the valid domain is small)
+    xs_full = [0.5  * m for m in range(0, 41)]   # 0, 0.5, 1.0, ..., 20.0
+    xs_rel  = [round(0.05 * k, 2) for k in range(0, 21)]   # 0, 0.05, 0.10, ..., 1.0
 
     R_table     = {x: R(x)     for x in xs_full}
     R1_table    = {x: R1(x)    for x in xs_full}
