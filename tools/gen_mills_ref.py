@@ -81,6 +81,24 @@ MRDD_TIERS = (
 )
 MRDD_DXS   = (0.0001, 0.01, 1.0, 2.0, 4.0, 8.0)
 
+# (a, dx) cells for the Taylor-branch test (a < 21.2, dx in the Taylor regime
+# dx < 0.0392*(1.25+x) but not asymptotically small).  dx grid scales with a
+# so each row reaches the gate corner of its tier; small-dx (dx << 0.0392)
+# is intentionally skipped because the kernel's descent r_d1 = (r_d3 + 1)/u
+# loses precision there (a documented kernel limit, not a Taylor truncation).
+MRDD_TAYLOR_CELLS = (
+    (1.0,  0.01),  (1.0,  0.05),  (1.0,  0.08),    # a=1,  gate ~0.09
+    (5.0,  0.01),  (5.0,  0.10),  (5.0,  0.20),    # a=5,  gate ~0.25
+    (10.0, 0.01),  (10.0, 0.20),  (10.0, 0.40),    # a=10, gate ~0.44
+    (15.0, 0.01),  (15.0, 0.30),  (15.0, 0.60),    # a=15, gate ~0.64
+    (20.0, 0.01),  (20.0, 0.50),  (20.0, 0.80),    # a=20, gate ~0.83
+)
+
+# (a, dx) grid for the direct-difference branch (dx >= 0.0392*(1.25+x), no
+# cancellation issues).  Uniform dx grid; all (a, dx) pairs route to direct.
+MRDD_DIRECT_TIERS = (1.0, 5.0, 10.0, 15.0, 20.0)
+MRDD_DIRECT_DXS   = (1.0, 2.0, 4.0, 8.0)
+
 
 def _fmt_dict_lines(name: str, mapping: dict) -> list[str]:
     """Emit `name = {x: value, ...}` with each entry on its own line and
@@ -121,6 +139,22 @@ def main(argv):
             row[dx] = MRDD(x, dx)
         MRDD_table.append(row)
 
+    # Taylor-branch reference: flat list of (a, dx, value) triples, mirroring
+    # MRDD_TAYLOR_CELLS exactly.
+    MRDD_TAYLOR_table = [
+        (a, dx, MRDD(a + dx, dx))
+        for (a, dx) in MRDD_TAYLOR_CELLS
+    ]
+
+    # Direct-branch reference: 2D dict-of-dicts, mirroring MRDD layout.
+    MRDD_DIRECT_table = []
+    for a in MRDD_DIRECT_TIERS:
+        row = {}
+        for dx in MRDD_DIRECT_DXS:
+            x = a + dx
+            row[dx] = MRDD(x, dx)
+        MRDD_DIRECT_table.append(row)
+
     header = (
         '"""High-precision reference values for the Mills primitives.\n'
         "\n"
@@ -158,6 +192,28 @@ def main(argv):
         lines.append("    {")
         for dx, v in row.items():
             lines.append(f"        {float(dx):>8}: {float(v):.17e},")
+        lines.append("    },")
+    lines.append("]")
+    lines.append("")
+
+    # Taylor reference: flat list of (a, dx, value) triples.
+    lines.append("# MillsRatioDiff Taylor-branch reference: list of (a, dx, value).")
+    lines.append("MRDD_TAYLOR = [")
+    for a, dx, v in MRDD_TAYLOR_table:
+        lines.append(f"    ({float(a):>5}, {float(dx):>6}, {float(v):.17e}),")
+    lines.append("]")
+    lines.append("")
+
+    # Direct reference: 2D dict-of-dicts.
+    lines.append("# MillsRatioDiff direct-branch reference: (a) tiers cross dx grid.")
+    lines.append("# MRDD_DIRECT[i] is a dict keyed by dx; tier i = MRDD_DIRECT_TIERS[i].")
+    lines.append(f"MRDD_DIRECT_TIERS = {MRDD_DIRECT_TIERS!r}")
+    lines.append(f"MRDD_DIRECT_DXS   = {MRDD_DIRECT_DXS!r}")
+    lines.append("MRDD_DIRECT = [")
+    for row in MRDD_DIRECT_table:
+        lines.append("    {")
+        for dx, v in row.items():
+            lines.append(f"        {float(dx):>5}: {float(v):.17e},")
         lines.append("    },")
     lines.append("]")
     lines.append("")
