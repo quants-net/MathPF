@@ -81,23 +81,23 @@ MRDD_TIERS = (
 )
 MRDD_DXS   = (0.0001, 0.01, 1.0, 2.0, 4.0, 8.0)
 
-# (a, dx) cells for the Taylor-branch test (a < 21.2, dx in the Taylor regime
-# dx < 0.0392*(1.25+x) but not asymptotically small).  dx grid scales with a
-# so each row reaches the gate corner of its tier; small-dx (dx << 0.0392)
-# is intentionally skipped because the kernel's descent r_d1 = (r_d3 + 1)/u
-# loses precision there (a documented kernel limit, not a Taylor truncation).
-MRDD_TAYLOR_CELLS = (
-    (1.0,  0.01),  (1.0,  0.05),  (1.0,  0.08),    # a=1,  gate ~0.09
-    (5.0,  0.01),  (5.0,  0.10),  (5.0,  0.20),    # a=5,  gate ~0.25
-    (10.0, 0.01),  (10.0, 0.20),  (10.0, 0.40),    # a=10, gate ~0.44
-    (15.0, 0.01),  (15.0, 0.30),  (15.0, 0.60),    # a=15, gate ~0.64
-    (20.0, 0.01),  (20.0, 0.50),  (20.0, 0.80),    # a=20, gate ~0.83
-)
-
-# (a, dx) grid for the direct-difference branch (dx >= 0.0392*(1.25+x), no
-# cancellation issues).  Uniform dx grid; all (a, dx) pairs route to direct.
-MRDD_DIRECT_TIERS = (1.0, 5.0, 10.0, 15.0, 20.0)
-MRDD_DIRECT_DXS   = (1.0, 2.0, 4.0, 8.0)
+# (a, m) grid for the branch-AGNOSTIC test of millsratio_dd(x, dx, +1).
+# m = dx / (1.25 + x) is the gate-fraction; the dispatcher's Taylor / Direct
+# threshold sits at 0.0392, so m = 0.0391 / 0.0393 straddle the gate corner
+# from below / above respectively.
+#
+# Why parameterise by m: lets the test grid stay stable even if the gate
+# constant moves in the future.  The test calls the public dispatcher with
+# no assertion about which internal branch handles the cell.
+#
+# For each (a, m): dx = m * (1.25 + a) / (1 - m)  -- inverts m = dx/(1.25+x).
+MRDD_DD_AS = (0.1, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0)
+MRDD_DD_MS = (0.01,     # deep small-dx regime
+              0.0391,   # just below the Taylor/Direct gate
+              0.0393,   # just above the gate
+              0.1,      # moderate
+              0.25,
+              0.75)     # large dx (deep Direct, dx > x)
 
 
 def _fmt_dict_lines(name: str, mapping: dict) -> list[str]:
@@ -139,21 +139,14 @@ def main(argv):
             row[dx] = MRDD(x, dx)
         MRDD_table.append(row)
 
-    # Taylor-branch reference: flat list of (a, dx, value) triples, mirroring
-    # MRDD_TAYLOR_CELLS exactly.
-    MRDD_TAYLOR_table = [
-        (a, dx, MRDD(a + dx, dx))
-        for (a, dx) in MRDD_TAYLOR_CELLS
-    ]
-
-    # Direct-branch reference: 2D dict-of-dicts, mirroring MRDD layout.
-    MRDD_DIRECT_table = []
-    for a in MRDD_DIRECT_TIERS:
-        row = {}
-        for dx in MRDD_DIRECT_DXS:
+    # Branch-agnostic MRDD reference for the dispatcher: flat list of
+    # (a, m, dx, value) tuples.  dx = m * (1.25 + a) / (1 - m); x = a + dx.
+    MRDD_DD_table = []
+    for a in MRDD_DD_AS:
+        for m in MRDD_DD_MS:
+            dx = m * (1.25 + a) / (1.0 - m)
             x = a + dx
-            row[dx] = MRDD(x, dx)
-        MRDD_DIRECT_table.append(row)
+            MRDD_DD_table.append((a, m, dx, MRDD(x, dx)))
 
     header = (
         '"""High-precision reference values for the Mills primitives.\n'
@@ -196,25 +189,17 @@ def main(argv):
     lines.append("]")
     lines.append("")
 
-    # Taylor reference: flat list of (a, dx, value) triples.
-    lines.append("# MillsRatioDiff Taylor-branch reference: list of (a, dx, value).")
-    lines.append("MRDD_TAYLOR = [")
-    for a, dx, v in MRDD_TAYLOR_table:
-        lines.append(f"    ({float(a):>5}, {float(dx):>6}, {float(v):.17e}),")
-    lines.append("]")
-    lines.append("")
-
-    # Direct reference: 2D dict-of-dicts.
-    lines.append("# MillsRatioDiff direct-branch reference: (a) tiers cross dx grid.")
-    lines.append("# MRDD_DIRECT[i] is a dict keyed by dx; tier i = MRDD_DIRECT_TIERS[i].")
-    lines.append(f"MRDD_DIRECT_TIERS = {MRDD_DIRECT_TIERS!r}")
-    lines.append(f"MRDD_DIRECT_DXS   = {MRDD_DIRECT_DXS!r}")
-    lines.append("MRDD_DIRECT = [")
-    for row in MRDD_DIRECT_table:
-        lines.append("    {")
-        for dx, v in row.items():
-            lines.append(f"        {float(dx):>5}: {float(v):.17e},")
-        lines.append("    },")
+    # Branch-agnostic dispatcher reference: list of (a, m, dx, value) tuples.
+    lines.append("# MillsRatioDiff branch-agnostic dispatcher reference: (a, m) grid.")
+    lines.append("# m = dx/(1.25+x) is the gate fraction; dispatcher gates at m = 0.0392.")
+    lines.append("# Each row: (a, m, dx, expected_value) -- dx is derived for ease of use.")
+    lines.append(f"MRDD_DD_AS = {MRDD_DD_AS!r}")
+    lines.append(f"MRDD_DD_MS = {MRDD_DD_MS!r}")
+    lines.append("MRDD_DD = [")
+    for a, m, dx, v in MRDD_DD_table:
+        # dx emitted at full repr() precision so the parsed-back float is
+        # bit-identical to what was used to compute the mpmath truth value.
+        lines.append(f"    ({float(a):>5}, {float(m):>7}, {float(dx)!r:>23}, {float(v):.17e}),")
     lines.append("]")
     lines.append("")
     out = "\n".join(lines)
