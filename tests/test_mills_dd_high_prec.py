@@ -22,7 +22,7 @@ import pytest
 import mathpf
 from _ref_table import MRDD as MRDD_REF
 from _ref_table import MRDD_TIERS, MRDD_DXS
-from _ref_table import MRDD_DD
+from _ref_table import MRDD_DD, MRDD_DD_MS
 
 
 _EPS = np.finfo(float).eps
@@ -82,4 +82,53 @@ def test_millsratio_dd_dispatcher_high_prec(a, m, dx, ref):
     assert _ulps(v, ref) <= TOL_ULP_DD, (
         f"MRDD_DD drift at a={a}, m={m}, dx={dx}: "
         f"kernel={v!r}, ref={ref!r}, ulps={_ulps(v, ref):.2f}"
+    )
+
+
+# ----------------------------------------------------------------------------
+# DD dispatcher vs CF cross-validation (no stored truth)
+# ----------------------------------------------------------------------------
+def _n_terms_for_a(a):
+    """Return the CF order n_terms appropriate for `a`'s XCF_R1 tier.  Caller
+    must ensure a >= 11.5 (where the n=12 bridge first reaches ~ulp accuracy)."""
+    if a >= 12800.0: return 2
+    if a >= 165.0:   return 4
+    if a >= 41.0:    return 6
+    if a >= 21.2:    return 8
+    if a >= 14.5:    return 10
+    if a >= 11.5:    return 12
+    raise ValueError(f"a={a} below CF accuracy range (need a >= 11.5)")
+
+
+# Reuse the same m grid; pair with a values where the CF primitive is
+# accurate (a >= 11.5).  The dispatcher may internally route any of these
+# cells to CF / Taylor / Direct depending on (a, m); the test compares its
+# output to millsratio_dd_cf with the tier-appropriate n_terms -- since the
+# previous MRDD_CF test confirmed millsratio_dd_cf matches mpmath to
+# sub-ulp at these tiers, this cross-check transitively validates the
+# dispatcher at a >= 11.5 without storing more reference values.
+MRDD_DD_VS_CF_AS = (11.5, 14.5, 15.0, 21.2, 30.0, 100.0)
+
+
+_PARAMS_DD_VS_CF = [
+    (a, m)
+    for a in MRDD_DD_VS_CF_AS
+    for m in MRDD_DD_MS
+]
+
+
+@pytest.mark.parametrize("a,m", _PARAMS_DD_VS_CF,
+                         ids=[f"a={a}_m={m}" for (a, m) in _PARAMS_DD_VS_CF])
+def test_millsratio_dd_dispatcher_vs_cf(a, m):
+    """Cross-validate millsratio_dd against millsratio_dd_cf at a >= 11.5
+    where CF is sub-ulp accurate per the previous MRDD_CF test.  No stored
+    truth -- the CF call itself is the reference."""
+    dx = m * (1.25 + a) / (1.0 - m)
+    x = a + dx
+    n = _n_terms_for_a(a)
+    ref = mathpf.millsratio_dd_cf(x, dx, n)
+    v   = mathpf.millsratio_dd(x, dx, +1)
+    assert _ulps(v, ref) <= TOL_ULP_DD, (
+        f"MRDD vs CF drift at a={a}, m={m}, dx={dx}, n_terms={n}: "
+        f"dispatcher={v!r}, cf_ref={ref!r}, ulps={_ulps(v, ref):.2f}"
     )

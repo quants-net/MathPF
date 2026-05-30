@@ -91,7 +91,7 @@ MRDD_DXS   = (0.0001, 0.01, 1.0, 2.0, 4.0, 8.0)
 # no assertion about which internal branch handles the cell.
 #
 # For each (a, m): dx = m * (1.25 + a) / (1 - m)  -- inverts m = dx/(1.25+x).
-MRDD_DD_AS = (0.1, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0)
+MRDD_DD_AS = (0.1, 0.5, 1.0, 2.0, 4.0, 5.0, 11.4)
 MRDD_DD_MS = (0.01,     # deep small-dx regime
               0.0391,   # just below the Taylor/Direct gate
               0.0393,   # just above the gate
