@@ -79,16 +79,16 @@ QNSPACE
             /* Asymp CF DD ladder, even-only n aligned with R_hat_1's CF cutoffs
              * XCF_R1[5..2] = 12800, 165, 41, 21.2.  Falls through to Taylor when
              * a < XCF_R1[2] = 21.2. */
-            if      (a >= T(XCF_R1[5])) return MillsRatioDiff_CF<T>(x, dx, 2);  /* a >= 12800 */
-            else if (a >= T(XCF_R1[4])) return MillsRatioDiff_CF<T>(x, dx, 4);  /* a >= 165 */
-            else if (a >= T(XCF_R1[3])) return MillsRatioDiff_CF<T>(x, dx, 6);  /* a >= 41 */
-            else if (a >= T(XCF_R1[2])) return MillsRatioDiff_CF<T>(x, dx, 8);  /* a in [21.2, 41) */
+            if      (a >= T(XCF_R1[5])) return MillsRatioDiff_CF<T>(x, dx, NCF_R1[5]);  /* a >= 12800:          CF n=2 */
+            else if (a >= T(XCF_R1[4])) return MillsRatioDiff_CF<T>(x, dx, NCF_R1[4]);  /* a in [165, 12800):   CF n=4 */
+            else if (a >= T(XCF_R1[3])) return MillsRatioDiff_CF<T>(x, dx, NCF_R1[3]);  /* a in [41, 165):      CF n=6 */
+            else if (a >= T(XCF_R1[2])) return MillsRatioDiff_CF<T>(x, dx, NCF_R1[2]);  /* a in [21.2, 41):     CF n=8 */
 
             /* a < 21.2: 5-term Taylor seeded by R''' (N=5 balance, ~38 eps at gate) */
             T u = x * x + T(3.0);                                       /* shared shifted variable */
             T r_d3;
             if (x >= T(XCF_R3[0]))                                      /* x in [17.1, ~22): CF n=12 directly */
-                r_d3 = MillsRatio_CF<T>(u, 12, 3);
+                r_d3 = MillsRatio_CF<T>(u, NCF_R3[0], 3);
             else                                                        /* x < 17.1: segmented Chebyshev path */
                 r_d3 = MillsRatioDeriv3<T>(x);
             T r_d1 = (r_d3 + T(1.0)) / u;                               /* descend: -R'(x), cancellation-free */

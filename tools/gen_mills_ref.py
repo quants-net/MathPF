@@ -20,6 +20,12 @@ from pathlib import Path
 
 import mpmath as mp
 
+# XCF_R1 / NCF_R1 are the single source of truth for R1's CF tier thresholds
+# and paired orders.  They live in _pyref/mills_cheby.py, which mirrors the
+# constants compiled into the C++ kernel via _mills_coef.h.  Importing here
+# means the MRDD_CF test grid auto-tracks any tier change.
+from mathpf._pyref.mills_cheby import XCF_R1, NCF_R1
+
 
 # 50 decimal digits is comfortably more than double precision (~17 digits)
 # minus headroom for any cancellation inside the formulas below.
@@ -66,19 +72,9 @@ def MRDD(x, dx):
     return (R(xm - dxm) - R(xm + dxm)) / (mp.mpf(2) * dxm)
 
 
-# (a, n_terms) pairs for the MillsRatioDiff_CF test, matching XCF_R1 tiers.
-# a = x - dx is the smaller Mills argument; n_terms is the CF order paired
-# with that tier in the production dispatcher (XCF_R1[k] -> n_terms 12, 10,
-# 8, 6, 4, 2 going outward; the bridge n=12 is the in-tier order for
-# a >= XCF_R1[0]).
-MRDD_TIERS = (
-    (11.5,    12),
-    (14.5,    10),
-    (21.2,     8),
-    (41.0,     6),
-    (165.0,    4),
-    (12800.0,  2),
-)
+# (a, n_terms) pairs for the MillsRatioDiff_CF test -- derived from XCF_R1
+# and NCF_R1.  a = x - dx is the smaller Mills argument.
+MRDD_TIERS = tuple(zip(XCF_R1, NCF_R1))
 MRDD_DXS   = (0.0001, 0.01, 1.0, 2.0, 4.0, 8.0)
 
 # (a, m) grid for the branch-AGNOSTIC test of millsratio_dd(x, dx, +1).

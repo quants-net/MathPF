@@ -111,13 +111,13 @@ QNSPACE
             return T(M_SQRT2PI_2) - x * rrel;
         }
         if (x >= T(XCF_R[0])) {                             /* tiered CF via shared MillsRatio_CF */
-            if (x >= T(XCF_R[6])) return T(1.0) / x;        /* n=0 */
-            if (x >= T(XCF_R[5])) return MillsRatio_CF(x, 2,  0);
-            if (x >= T(XCF_R[4])) return MillsRatio_CF(x, 4,  0);
-            if (x >= T(XCF_R[3])) return MillsRatio_CF(x, 6,  0);
-            if (x >= T(XCF_R[2])) return MillsRatio_CF(x, 8,  0);
-            if (x >= T(XCF_R[1])) return MillsRatio_CF(x, 10, 0);
-            return                       MillsRatio_CF(x, 12, 0);   /* bridge */
+            if (x >= T(XCF_R[6])) return T(1.0) / x;                          /* x >= 67000000: n=0 degenerate */
+            if (x >= T(XCF_R[5])) return MillsRatio_CF(x, NCF_R[5], 0);       /* x in [548, 67e6):    CF n=2  */
+            if (x >= T(XCF_R[4])) return MillsRatio_CF(x, NCF_R[4], 0);       /* x in [59.3, 548):    CF n=4  */
+            if (x >= T(XCF_R[3])) return MillsRatio_CF(x, NCF_R[3], 0);       /* x in [24.1, 59.3):   CF n=6  */
+            if (x >= T(XCF_R[2])) return MillsRatio_CF(x, NCF_R[2], 0);       /* x in [15.1, 24.1):   CF n=8  */
+            if (x >= T(XCF_R[1])) return MillsRatio_CF(x, NCF_R[1], 0);       /* x in [11.4, 15.1):   CF n=10 */
+            return                       MillsRatio_CF(x, NCF_R[0], 0);       /* x in [9.5, 11.4):    CF n=12 bridge */
         }
         d = T(N_FRAC_R1) + x;
         i = static_cast<int>(T(NSEG_R1) * (x - T(1.0)) / d);
@@ -154,12 +154,12 @@ QNSPACE
         if (x >= T(XCF_R1[0])) {
             u = x * x + T(3.0);                             /* shared with U_MAX guard and MillsRatio_CF */
             if (u > T(U_MAX)) return T(0.0);                /* +3 shift invisible at the saturation threshold */
-            if (x >= T(XCF_R1[5])) return MillsRatio_CF(u, 2,  1);
-            if (x >= T(XCF_R1[4])) return MillsRatio_CF(u, 4,  1);
-            if (x >= T(XCF_R1[3])) return MillsRatio_CF(u, 6,  1);
-            if (x >= T(XCF_R1[2])) return MillsRatio_CF(u, 8,  1);
-            if (x >= T(XCF_R1[1])) return MillsRatio_CF(u, 10, 1);
-            return                        MillsRatio_CF(u, 12, 1);   /* bridge */
+            if (x >= T(XCF_R1[5])) return MillsRatio_CF(u, NCF_R1[5], 1);     /* x >= 12800:          CF n=2  */
+            if (x >= T(XCF_R1[4])) return MillsRatio_CF(u, NCF_R1[4], 1);     /* x in [165, 12800):   CF n=4  */
+            if (x >= T(XCF_R1[3])) return MillsRatio_CF(u, NCF_R1[3], 1);     /* x in [41, 165):      CF n=6  */
+            if (x >= T(XCF_R1[2])) return MillsRatio_CF(u, NCF_R1[2], 1);     /* x in [21.2, 41):     CF n=8  */
+            if (x >= T(XCF_R1[1])) return MillsRatio_CF(u, NCF_R1[1], 1);     /* x in [14.5, 21.2):   CF n=10 */
+            return                        MillsRatio_CF(u, NCF_R1[0], 1);     /* x in [11.5, 14.5):   CF n=12 bridge */
         }
         d = T(N_FRAC_R1) + x;
         i = static_cast<int>(T(NSEG_R1) * (x - T(1.0)) / d);
@@ -187,11 +187,11 @@ QNSPACE
         if (x >= T(XCF_R3[0])) {
             u = x * x + T(3.0);
             if (u > T(U_MAX)) return T(0.0);
-            if (x >= T(XCF_R3[4])) return MillsRatio_CF(u, 4,  3);
-            if (x >= T(XCF_R3[3])) return MillsRatio_CF(u, 6,  3);
-            if (x >= T(XCF_R3[2])) return MillsRatio_CF(u, 8,  3);
-            if (x >= T(XCF_R3[1])) return MillsRatio_CF(u, 10, 3);
-            return                        MillsRatio_CF(u, 12, 3);   /* bridge */
+            if (x >= T(XCF_R3[4])) return MillsRatio_CF(u, NCF_R3[4], 3);     /* x >= 17300:          CF n=4  */
+            if (x >= T(XCF_R3[3])) return MillsRatio_CF(u, NCF_R3[3], 3);     /* x in [210, 17300):   CF n=6  */
+            if (x >= T(XCF_R3[2])) return MillsRatio_CF(u, NCF_R3[2], 3);     /* x in [50.5, 210):    CF n=8  */
+            if (x >= T(XCF_R3[1])) return MillsRatio_CF(u, NCF_R3[1], 3);     /* x in [25.4, 50.5):   CF n=10 */
+            return                        MillsRatio_CF(u, NCF_R3[0], 3);     /* x in [17.1, 25.4):   CF n=12 bridge */
         }
         d = T(N_FRAC_R3) + x;
         i = static_cast<int>(x / d * T(NSEG_R3));

@@ -68,14 +68,14 @@ def R_DD(x, dx, theta=1):
         # Asymp CF DD ladder, even-only n aligned with R_hat_1's CF convergent rate (n+1)!/a^(2n) ~ eps:
         # thresholds are exactly R_hat_1's CF cutoffs at n = 2, 4, 6, 8 (mc.XCF_R1[5..2]).  Falls
         # through to Taylor when a < mc.XCF_R1[2] (= 21.2).
-        if   a >= mc.XCF_R1[5]: return R_DD_CF(x, dx, 2) # a >= 12800
-        elif a >= mc.XCF_R1[4]: return R_DD_CF(x, dx, 4) # a >= 165
-        elif a >= mc.XCF_R1[3]: return R_DD_CF(x, dx, 6) # a >= 41
-        elif a >= mc.XCF_R1[2]: return R_DD_CF(x, dx, 8) # a in [21.2, 41): bottom row
+        if   a >= mc.XCF_R1[5]: return R_DD_CF(x, dx, mc.NCF_R1[5]) # a >= 12800:          CF n=2
+        elif a >= mc.XCF_R1[4]: return R_DD_CF(x, dx, mc.NCF_R1[4]) # a in [165, 12800):   CF n=4
+        elif a >= mc.XCF_R1[3]: return R_DD_CF(x, dx, mc.NCF_R1[3]) # a in [41, 165):      CF n=6
+        elif a >= mc.XCF_R1[2]: return R_DD_CF(x, dx, mc.NCF_R1[2]) # a in [21.2, 41):     CF n=8 bottom row
         # a < mc.XCF_R1[2] (21.2): 5-term Taylor seeded by R''' (N=5 balance, ~38 eps at gate)
         u = x*x + 3.0                                   # kernel's shifted variable; shared with R013_CF, descent, and ascent
         if x >= _R3_XCF:                                # x in [17.1, ~22): mc.R3's CF n=12 path; call directly with our u
-            r_d3 = mc.R013_CF(u, 12, 3)                 # skips mc.R3's sign/U_MAX/ladder dispatch + redundant x*x + 3
+            r_d3 = mc.R013_CF(u, mc.NCF_R3[0], 3)        # skips mc.R3's sign/U_MAX/ladder dispatch + redundant x*x + 3
         else:                                           # x < 17.1: segmented Chebyshev path inside mc.R3
             r_d3 = mc.R3(x)                             # = -R'''(x)
         r_d1 = (r_d3 + 1.0) / u                        # descend: -R'(x), cancellation-free (odd -> odd); u = x^2 + 3

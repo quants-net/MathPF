@@ -18,7 +18,8 @@ from array import array
 
 M_SQRT2PI = 2.5066282746310002
 M_SQRT2PI_2 = 1.2533141373155001  # R(0) = sqrt(pi/2) = M_SQRT2PI/2
-XCF_R = (9.5, 11.4, 15.1, 24.1, 59.3, 548.0, 67000000.0)  # (bridge x_cf=n=12, then ascending CF tiers n=10,8,6,4,2,0)
+XCF_R = (9.5, 11.4, 15.1, 24.1, 59.3, 548.0, 67000000.0)
+NCF_R = (12,   10,    8,    6,    4,   2,    0)        # CF order paired with each XCF_R tier
 # _U_MAX = sqrt(DBL_MAX) ~ 1.34e154.  Past it x*x overflows the quadratic CF
 # denominators of R1/R3; there the functions are ~0, so the guard returns 0.
 _U_MAX = math.sqrt(sys.float_info.max)
@@ -58,7 +59,8 @@ C_Rrel = array('d', (
 # --- R / R1: hybrid split at x=1 (memory-minimal; see emit_R_R1_Rrel) ---
 # x<=1: use C_Rrel above.  x>1: R1 has a deg-7 table (C_R1) in t=(x-1)/(N_FRAC_R1+x),
 #   R = (1-R1)/x.  Beyond x_cf each uses its own tiered CF (XCF_R at top, XCF_R1 below).
-XCF_R1 = (11.5, 14.5, 21.2, 41.0, 165.0, 12800.0)  # (bridge x_cf=n=12, then ascending CF tiers n=10,8,6,4,2)
+XCF_R1 = (11.5, 14.5, 21.2, 41.0, 165.0, 12800.0)
+NCF_R1 = (12,   10,    8,    6,    4,    2)            # CF order paired with each XCF_R1 tier
 N_FRAC_R1 = 2.5  # shifted-t scale: t = (x-1)/(N_FRAC_R1 + x), t=0 at x=1
 NSEG_R1 = 32  # equal t-buckets over [0,1] (XCF-independent partition)
 TMAX_R1 = 26  # stored buckets 0..TMAX_R1-1 of C_R1; cover x in [1, XMAX_R1]
@@ -98,7 +100,8 @@ C_R1 = array('d', (
 #   equal buckets (FIXED partition).  i = int(x/(N_FRAC_R3+x)*NSEG_R3);  local coordinate
 #   s = ((NSEG_R3-i)*x - i*N_FRAC_R3)/(N_FRAC_R3+x) (not NSEG*w-i) keeps precision at large x.
 N_FRAC_R3 = 3.5  # w-bucket scale: w = x/(N_FRAC_R3 + x)
-XCF_R3 = (17.1, 25.4, 50.5, 210.0, 17300.0)  # (bridge x_cf=n=12, then ascending CF tiers n=10,8,6,4); XCF_R3[0] in bucket ~37
+XCF_R3 = (17.1, 25.4, 50.5, 210.0, 17300.0)            # XCF_R3[0] in bucket ~37
+NCF_R3 = (12,   10,    8,    6,     4)                 # CF order paired with each XCF_R3 tier
 NSEG_R3 = 50  # total equal-width buckets of w=x/(N_FRAC_R3+x) over [0,1] (XCF-independent)
 TMAX_R3 = 45  # coefficients cover buckets 0..TMAX_R3-1, i.e. t in [0, TMAX_R3)
 XMAX_R3 = 31.5  # max x covered by C_R3 (~1.24x bridge); XCF_R3[0] may rise to XMAX_R3 w/o refit
@@ -240,13 +243,13 @@ def R(x):
         rrel = (((((((c[o+7])*s + c[o+6])*s + c[o+5])*s + c[o+4])*s + c[o+3])*s + c[o+2])*s + c[o+1])*s + c[o]
         return M_SQRT2PI_2 - x * rrel
     if x >= XCF_R[0]:                   # tiered CF convergents (shared with R1, R3 via R013_CF)
-        if x >= XCF_R[6]: return 1.0 / x                # n=0
-        if x >= XCF_R[5]: return R013_CF(x,  2, 0)
-        if x >= XCF_R[4]: return R013_CF(x,  4, 0)
-        if x >= XCF_R[3]: return R013_CF(x,  6, 0)
-        if x >= XCF_R[2]: return R013_CF(x,  8, 0)
-        if x >= XCF_R[1]: return R013_CF(x, 10, 0)
-        return            R013_CF(x, 12, 0)             # bridge
+        if x >= XCF_R[6]: return 1.0 / x                          # x >= 67000000:        n=0 degenerate
+        if x >= XCF_R[5]: return R013_CF(x, NCF_R[5], 0)          # x in [548, 67e6):     CF n=2
+        if x >= XCF_R[4]: return R013_CF(x, NCF_R[4], 0)          # x in [59.3, 548):     CF n=4
+        if x >= XCF_R[3]: return R013_CF(x, NCF_R[3], 0)          # x in [24.1, 59.3):    CF n=6
+        if x >= XCF_R[2]: return R013_CF(x, NCF_R[2], 0)          # x in [15.1, 24.1):    CF n=8
+        if x >= XCF_R[1]: return R013_CF(x, NCF_R[1], 0)          # x in [11.4, 15.1):    CF n=10
+        return            R013_CF(x, NCF_R[0], 0)                 # x in [9.5, 11.4):     CF n=12 bridge
     d = N_FRAC_R1 + x                   # 1 < x < XCF_R[0]: R = (1 - R1)/x, R1 from C_R1
     i = int(NSEG_R1 * (x - 1.0) / d)
     if i >= TMAX_R1:
@@ -273,12 +276,12 @@ def R1(x):
     if x >= XCF_R1[0]:
         u = x*x + 3.0                                   # kernel's shifted variable; shared with _U_MAX guard and R013_CF
         if u > _U_MAX: return 0.0                       # +3 shift in threshold is invisible (_U_MAX >> 3 at saturation)
-        if x >= XCF_R1[5]: return R013_CF(u,  2, 1)
-        if x >= XCF_R1[4]: return R013_CF(u,  4, 1)
-        if x >= XCF_R1[3]: return R013_CF(u,  6, 1)
-        if x >= XCF_R1[2]: return R013_CF(u,  8, 1)
-        if x >= XCF_R1[1]: return R013_CF(u, 10, 1)
-        return            R013_CF(u, 12, 1)             # bridge
+        if x >= XCF_R1[5]: return R013_CF(u, NCF_R1[5], 1)        # x >= 12800:           CF n=2
+        if x >= XCF_R1[4]: return R013_CF(u, NCF_R1[4], 1)        # x in [165, 12800):    CF n=4
+        if x >= XCF_R1[3]: return R013_CF(u, NCF_R1[3], 1)        # x in [41, 165):       CF n=6
+        if x >= XCF_R1[2]: return R013_CF(u, NCF_R1[2], 1)        # x in [21.2, 41):      CF n=8
+        if x >= XCF_R1[1]: return R013_CF(u, NCF_R1[1], 1)        # x in [14.5, 21.2):    CF n=10
+        return            R013_CF(u, NCF_R1[0], 1)                # x in [11.5, 14.5):    CF n=12 bridge
     d = N_FRAC_R1 + x                   # 1 < x < XCF_R1[0]: deg-7 t-bucket
     i = int(NSEG_R1 * (x - 1.0) / d)
     if i >= TMAX_R1:
@@ -296,11 +299,11 @@ def R3(x):
     if x >= XCF_R3[0]:
         u = x*x + 3.0                                   # kernel's shifted variable; shared with _U_MAX guard and R013_CF
         if u > _U_MAX: return 0.0                       # +3 shift in threshold is invisible (_U_MAX >> 3 at saturation)
-        if x >= XCF_R3[4]: return R013_CF(u,  4, 3)
-        if x >= XCF_R3[3]: return R013_CF(u,  6, 3)
-        if x >= XCF_R3[2]: return R013_CF(u,  8, 3)
-        if x >= XCF_R3[1]: return R013_CF(u, 10, 3)
-        return             R013_CF(u, 12, 3)            # bridge
+        if x >= XCF_R3[4]: return R013_CF(u, NCF_R3[4], 3)        # x >= 17300:           CF n=4
+        if x >= XCF_R3[3]: return R013_CF(u, NCF_R3[3], 3)        # x in [210, 17300):    CF n=6
+        if x >= XCF_R3[2]: return R013_CF(u, NCF_R3[2], 3)        # x in [50.5, 210):     CF n=8
+        if x >= XCF_R3[1]: return R013_CF(u, NCF_R3[1], 3)        # x in [25.4, 50.5):    CF n=10
+        return             R013_CF(u, NCF_R3[0], 3)               # x in [17.1, 25.4):    CF n=12 bridge
     d = N_FRAC_R3 + x
     i = int(x / d * NSEG_R3)
     s = ((NSEG_R3 - i) * x - i * N_FRAC_R3) / d

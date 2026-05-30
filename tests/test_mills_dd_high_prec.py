@@ -24,6 +24,11 @@ from _ref_table import MRDD as MRDD_REF
 from _ref_table import MRDD_TIERS, MRDD_DXS
 from _ref_table import MRDD_DD, MRDD_DD_MS
 
+# Single source of truth for the CF tier thresholds AND the paired n_terms
+# orders -- shared with the C++ kernel (compiled in via _mills_coef.h) and
+# the Python reference.  No hardcoded ladder values in this test file.
+from mathpf._pyref.mills_cheby import XCF_R1, NCF_R1
+
 
 _EPS = np.finfo(float).eps
 
@@ -90,14 +95,14 @@ def test_millsratio_dd_dispatcher_high_prec(a, m, dx, ref):
 # ----------------------------------------------------------------------------
 def _n_terms_for_a(a):
     """Return the CF order n_terms appropriate for `a`'s XCF_R1 tier.  Caller
-    must ensure a >= 11.5 (where the n=12 bridge first reaches ~ulp accuracy)."""
-    if a >= 12800.0: return 2
-    if a >= 165.0:   return 4
-    if a >= 41.0:    return 6
-    if a >= 21.2:    return 8
-    if a >= 14.5:    return 10
-    if a >= 11.5:    return 12
-    raise ValueError(f"a={a} below CF accuracy range (need a >= 11.5)")
+    must ensure a >= XCF_R1[0] (= 11.5 currently), where the n=12 bridge
+    first reaches ~ulp accuracy."""
+    if a < XCF_R1[0]:
+        raise ValueError(f"a={a} below CF accuracy range (need a >= {XCF_R1[0]})")
+    # Walk top-down; return the n_terms paired with the largest XCF_R1[k] that a clears.
+    for k in range(len(XCF_R1) - 1, -1, -1):
+        if a >= XCF_R1[k]:
+            return NCF_R1[k]
 
 
 # Reuse the same m grid; pair with a values where the CF primitive is

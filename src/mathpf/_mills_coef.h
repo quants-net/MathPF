@@ -9,9 +9,19 @@ inline constexpr double M_SQRT2PI_2 = 1.2533141373155001;  /* R(0) = sqrt(pi/2) 
 inline constexpr double U_MAX       = 1.3407807929942596e+154;  /* sqrt(DBL_MAX); R1/R3 -> 0 beyond */
 inline constexpr double X_NEG_MAX   = -37.5;  /* x < this: R/R1/R3 reflection's exp(x^2/2) overflows; saturate to +inf */
 
-inline constexpr double XCF_R[7]  = {9.5, 11.4, 15.1, 24.1, 59.3, 548.0, 67000000.0};   /* bridge n=12, then n=10,8,6,4,2,0 */
-inline constexpr double XCF_R1[6] = {11.5, 14.5, 21.2, 41.0, 165.0, 12800.0};            /* bridge n=12, then n=10,8,6,4,2  */
-inline constexpr double XCF_R3[5] = {17.1, 25.4, 50.5, 210.0, 17300.0};                  /* bridge n=12, then n=10,8,6,4    */
+/* XCF_R* ladders: lower-edge cutoffs for each CF tier.  XCF_R*[0] is the
+ * bridge entry (smallest x in CF region); subsequent entries are tier
+ * boundaries.  NCF_R* are parallel arrays giving the CF order n_terms to
+ * use at each tier (NCF_R*[k] applies when x >= XCF_R*[k] and x < XCF_R*[k+1];
+ * the last entry of NCF_R covers x above the last XCF_R cutoff). */
+inline constexpr double XCF_R[7]  = {9.5, 11.4, 15.1, 24.1, 59.3, 548.0, 67000000.0};
+inline constexpr int    NCF_R[7]  = { 12,   10,    8,    6,    4,     2,          0};
+
+inline constexpr double XCF_R1[6] = {11.5, 14.5, 21.2, 41.0, 165.0, 12800.0};
+inline constexpr int    NCF_R1[6] = {  12,   10,    8,    6,     4,        2};
+
+inline constexpr double XCF_R3[5] = {17.1, 25.4, 50.5, 210.0, 17300.0};
+inline constexpr int    NCF_R3[5] = {  12,   10,    8,     6,        4};
 
 inline constexpr double N_FRAC_R1 = 2.5;
 inline constexpr int    NSEG_R1   = 32;
