@@ -1,7 +1,8 @@
 """Generate high-precision reference values for the Mills primitives R, R1,
-R3, R_rel at x = 0, 0.5, 1.0, ..., 20.0 (m = 0..40, x = 0.5 m) using mpmath
-at 50 decimal digits, then emit a Python module containing the values as
-plain float constants for the test suite to import.
+R3, R_rel (at x = 0, 0.5, 1.0, ..., 20.0) AND the divided-difference primitive
+MillsRatioDiff_CF (at the XCF_R1-tier (a, n_terms) pairings cross dx grid),
+using mpmath at 50 decimal digits.  Emits a Python module of plain float
+constants for the test suite to import.
 
 The generated file (tests/_ref_table.py) is committed; mpmath is NOT a
 test-time dependency.  Re-run this generator only when extending the
@@ -56,6 +57,31 @@ def R_rel(x):
     return (mp.sqrt(mp.pi / 2) - R(xm)) / xm
 
 
+def MRDD(x, dx):
+    """Mills-ratio divided difference (symmetric form):
+        MRDD(x, dx) = (R(x - dx) - R(x + dx)) / (2 dx) .
+    Equivalent to MillsRatioDiff(x, dx, theta=+1) -- the difference branch
+    (theta=-1 sum branch is a separate primitive)."""
+    xm, dxm = mp.mpf(x), mp.mpf(dx)
+    return (R(xm - dxm) - R(xm + dxm)) / (mp.mpf(2) * dxm)
+
+
+# (a, n_terms) pairs for the MillsRatioDiff_CF test, matching XCF_R1 tiers.
+# a = x - dx is the smaller Mills argument; n_terms is the CF order paired
+# with that tier in the production dispatcher (XCF_R1[k] -> n_terms 12, 10,
+# 8, 6, 4, 2 going outward; the bridge n=12 is the in-tier order for
+# a >= XCF_R1[0]).
+MRDD_TIERS = (
+    (11.5,    12),
+    (14.5,    10),
+    (21.2,     8),
+    (41.0,     6),
+    (165.0,    4),
+    (12800.0,  2),
+)
+MRDD_DXS   = (0.0001, 0.01, 1.0, 2.0, 4.0, 8.0)
+
+
 def _fmt_dict_lines(name: str, mapping: dict) -> list[str]:
     """Emit `name = {x: value, ...}` with each entry on its own line and
     values printed at 18 significant digits (well past double precision)."""
@@ -84,6 +110,17 @@ def main(argv):
     R3_table    = {x: R3(x)    for x in xs_full}
     Rrel_table  = {x: R_rel(x) for x in xs_rel}
 
+    # MillsRatioDiff_CF (symmetric divided difference) reference: 2D table
+    # indexed by (a, n_terms) tier first, then dx.  Stored as a list-of-dicts
+    # paralleling MRDD_TIERS / MRDD_DXS for direct index lookup in the test.
+    MRDD_table = []
+    for a, _n in MRDD_TIERS:
+        row = {}
+        for dx in MRDD_DXS:
+            x = a + dx                  # x = a + dx by construction (a = x - dx)
+            row[dx] = MRDD(x, dx)
+        MRDD_table.append(row)
+
     header = (
         '"""High-precision reference values for the Mills primitives.\n'
         "\n"
@@ -97,6 +134,8 @@ def main(argv):
         "    R1(x)      = -R'(x)     = 1 - x R(x)\n"
         "    R3(x)      = -R'''(x)   = (x^2 + 3)(1 - x R(x)) - 1\n"
         "    R_rel(x)   = (sqrt(pi/2) - R(x)) / x,  defined on [0, 1] with R_rel(0) := 1\n"
+        "    MRDD(x,dx) = (R(x-dx) - R(x+dx)) / (2 dx)  -- symmetric divided difference\n"
+        "                  (= MillsRatioDiff(x, dx, theta=+1) difference branch)\n"
         "\"\"\"\n"
     )
 
@@ -108,6 +147,19 @@ def main(argv):
     lines.extend(_fmt_dict_lines("R3", R3_table))
     lines.append("")
     lines.extend(_fmt_dict_lines("R_rel", Rrel_table))
+    lines.append("")
+    # MRDD reference: 2D structure that mirrors MRDD_TIERS / MRDD_DXS.
+    lines.append("# MillsRatioDiff_CF reference: (a, n_terms) tier pairings cross dx grid.")
+    lines.append("# Each MRDD[i] is a dict keyed by dx; tier i corresponds to MRDD_TIERS[i].")
+    lines.append(f"MRDD_TIERS = {MRDD_TIERS!r}")
+    lines.append(f"MRDD_DXS   = {MRDD_DXS!r}")
+    lines.append("MRDD = [")
+    for row in MRDD_table:
+        lines.append("    {")
+        for dx, v in row.items():
+            lines.append(f"        {float(dx):>8}: {float(v):.17e},")
+        lines.append("    },")
+    lines.append("]")
     lines.append("")
     out = "\n".join(lines)
 
