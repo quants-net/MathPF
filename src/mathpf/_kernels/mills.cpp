@@ -20,14 +20,22 @@ QNSPACE
     using std::exp;
 
     /* ----------------------------------------------------------------------
-     * MillsRatioRel_below1(x) = (sqrt(pi/2) - R(x))/x on [0, 1].  Degree-14
-     * Horner in C_Rrel; R = M_SQRT2PI_2 - x * Rrel_below1.
+     * MillsRatioRel_below1(x) = (sqrt(pi/2) - R(x))/x on [0, 1].  12 uniform
+     * segments of degree 7 in C_Rrel; same per-call cost as MillsRatioDeriv1.
+     * The two other [0, 1] consumers (MillsRatio, MillsRatioDeriv1) inline the
+     * same lookup+Horner pattern, then apply their respective identities:
+     *     R   = sqrt(pi/2) - x * Rrel
+     *     R1  = 1 - x * R = 1 - x*(sqrt(pi/2) - x*Rrel)
      * ---------------------------------------------------------------------- */
     template<typename T>
     T MillsRatioRel_below1(T x)
     {
+        int i = static_cast<int>(T(NSEG_RREL) * x);
+        if (i >= NSEG_RREL) i = NSEG_RREL - 1;
+        const T s = T(NSEG_RREL) * x - T(i);
+        const int o = i * 8;
         const double* c = C_Rrel;
-        return ((((((((((((((T(c[14]))*x + T(c[13]))*x + T(c[12]))*x + T(c[11]))*x + T(c[10]))*x + T(c[9]))*x + T(c[8]))*x + T(c[7]))*x + T(c[6]))*x + T(c[5]))*x + T(c[4]))*x + T(c[3]))*x + T(c[2]))*x + T(c[1]))*x + T(c[0]);
+        return (((((((T(c[o+7]))*s + T(c[o+6]))*s + T(c[o+5]))*s + T(c[o+4]))*s + T(c[o+3]))*s + T(c[o+2]))*s + T(c[o+1]))*s + T(c[o]);
     }
 
     /* ----------------------------------------------------------------------
@@ -94,8 +102,13 @@ QNSPACE
             return T(M_SQRT2PI) * exp(T(0.5) * x * x) - MillsRatio(-x);
         }
         if (x <= T(1.0)) {
+            i = static_cast<int>(T(NSEG_RREL) * x);
+            if (i >= NSEG_RREL) i = NSEG_RREL - 1;
+            s = T(NSEG_RREL) * x - T(i);
+            o = i * 8;
             c = C_Rrel;
-            return T(M_SQRT2PI_2) - x * (((((((((((((((T(c[14]))*x + T(c[13]))*x + T(c[12]))*x + T(c[11]))*x + T(c[10]))*x + T(c[9]))*x + T(c[8]))*x + T(c[7]))*x + T(c[6]))*x + T(c[5]))*x + T(c[4]))*x + T(c[3]))*x + T(c[2]))*x + T(c[1]))*x + T(c[0]));
+            const T rrel = (((((((T(c[o+7]))*s + T(c[o+6]))*s + T(c[o+5]))*s + T(c[o+4]))*s + T(c[o+3]))*s + T(c[o+2]))*s + T(c[o+1]))*s + T(c[o]);
+            return T(M_SQRT2PI_2) - x * rrel;
         }
         if (x >= T(XCF_R[0])) {                             /* tiered CF via shared MillsRatio_CF */
             if (x >= T(XCF_R[6])) return T(1.0) / x;        /* n=0 */
@@ -130,8 +143,13 @@ QNSPACE
             return T(M_SQRT2PI) * (-x) * exp(T(0.5) * x * x) + MillsRatioDeriv1(-x);
         }
         if (x <= T(1.0)) {
+            i = static_cast<int>(T(NSEG_RREL) * x);
+            if (i >= NSEG_RREL) i = NSEG_RREL - 1;
+            s = T(NSEG_RREL) * x - T(i);
+            o = i * 8;
             c = C_Rrel;
-            return T(1.0) - x * (T(M_SQRT2PI_2) - x * (((((((((((((((T(c[14]))*x + T(c[13]))*x + T(c[12]))*x + T(c[11]))*x + T(c[10]))*x + T(c[9]))*x + T(c[8]))*x + T(c[7]))*x + T(c[6]))*x + T(c[5]))*x + T(c[4]))*x + T(c[3]))*x + T(c[2]))*x + T(c[1]))*x + T(c[0])));
+            const T rrel = (((((((T(c[o+7]))*s + T(c[o+6]))*s + T(c[o+5]))*s + T(c[o+4]))*s + T(c[o+3]))*s + T(c[o+2]))*s + T(c[o+1]))*s + T(c[o]);
+            return T(1.0) - x * (T(M_SQRT2PI_2) - x * rrel);
         }
         if (x >= T(XCF_R1[0])) {
             u = x * x + T(3.0);                             /* shared with U_MAX guard and MillsRatio_CF */
