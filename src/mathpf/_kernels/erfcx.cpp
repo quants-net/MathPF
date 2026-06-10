@@ -21,26 +21,26 @@
  */
 #include "erfcx.h"
 #include "mills.h"           /* MillsRatio, MillsRatioDeriv1, MillsRatioDeriv3 */
-#include "MathConstants.h"   /* M_SQRT2, M_SQRT_2_PI, M_2_SQRT_PI */
+#include "MathConstants.h"   /* M_SQRT_2, M_SQRT_2_PI, M_2_SQRT_PI */
 
 namespace mathpf
 {
     template<typename T>
     T Erfcx(T z)
     {
-        return MillsRatio<T>(z * M_SQRT2<T>) * M_SQRT_2_PI<T>;
+        return MillsRatio<T>(z * M_SQRT_2<T>) * M_SQRT_2_PI<T>;
     }
 
     template<typename T>
     T ErfcxDeriv1(T z)
     {
-        return -MillsRatioDeriv1<T>(z * M_SQRT2<T>) * M_2_SQRT_PI<T>;
+        return -MillsRatioDeriv1<T>(z * M_SQRT_2<T>) * M_2_SQRT_PI<T>;
     }
 
     template<typename T>
     T ErfcxDeriv3(T z)
     {
-        return -MillsRatioDeriv3<T>(z * M_SQRT2<T>) * T(2) * M_2_SQRT_PI<T>;
+        return -MillsRatioDeriv3<T>(z * M_SQRT_2<T>) * T(2) * M_2_SQRT_PI<T>;
     }
 
     /* Explicit float / double instantiations. */

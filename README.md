@@ -219,7 +219,7 @@ All in `mathpf::` namespace, 22 sig-fig precision via mpmath (round-trip-stable 
 
 | Name | Value | Used by |
 |---|---|---|
-| `M_SQRT2<T>` | `√2 ≈ 1.41421…` | erfcx wrappers |
+| `M_SQRT_2<T>` | `√2 ≈ 1.41421…` | erfcx wrappers (spelled with underscore to avoid clashing with POSIX `<math.h>` macro `M_SQRT2`) |
 | `M_SQRT2PI<T>` | `√(2π) ≈ 2.50662…` | Mills reflection |
 | `M_SQRT2PI_2<T>` | `√(π/2) = R(0)` | `R` segment-zero anchor |
 | `M_SQRT_2_PI<T>` | `√(2/π) = 1/M_SQRT2PI_2` | erfcx |

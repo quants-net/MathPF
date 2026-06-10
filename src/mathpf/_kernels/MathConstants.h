@@ -4,9 +4,13 @@
  * Each TU that #includes this header gets the constants at the precision
  * required for its T = {float, double} instantiations.
  *
- * Names follow the `<math.h>` `M_*` convention, scoped by `namespace mathpf`
- * so they cannot clash with any preprocessor `M_*` macros that platform
- * headers may define.
+ * Names follow the `<math.h>` `M_*` convention.  The constant for sqrt(2)
+ * is spelled `M_SQRT_2` (with underscore) to avoid clashing with the POSIX
+ * `<math.h>` macro `M_SQRT2` (glibc / Darwin define it as 1.41421...);
+ * macros bypass `namespace mathpf::` scoping because preprocessing happens
+ * before the compiler sees the namespace.  The other `M_*` identifiers here
+ * (`M_SQRT2PI`, `M_SQRT2PI_2`, `M_SQRT_2_PI`, `M_2_SQRT_PI`) do not match
+ * any POSIX macro name, so they are safe at their natural spelling.
  *
  * 22 sigfigs each: round-trip-stable to the nearest fp64 regardless of the
  * platform's decimal-to-double parser.  Generated via mpmath at mp.dps = 30.
@@ -20,14 +24,14 @@
 namespace mathpf
 {
     /* Used by mills.cpp (reflection branch) and the erfcx interface. */
-    template<typename T> inline constexpr T M_SQRT2     = T(1.414213562373095048802);   /* sqrt(2)       */
+    template<typename T> inline constexpr T M_SQRT_2     = T(1.414213562373095048802);   /* sqrt(2)       */
     template<typename T> inline constexpr T M_SQRT2PI   = T(2.506628274631000502416);   /* sqrt(2 pi)    */
     template<typename T> inline constexpr T M_SQRT2PI_2 = T(1.253314137315500251208);   /* sqrt(pi / 2)  = R(0) */
 
     /* Used by the erfcx interface (erfcx via Mills):
-     *     erfcx(z)   =  R(z * M_SQRT2)   * M_SQRT_2_PI    (= 2 / sqrt(2 pi))
-     *     erfcx'(z)  = -R_1(z * M_SQRT2) * M_2_SQRT_PI
-     *     erfcx'''(z)= -R_3(z * M_SQRT2) * 2 * M_2_SQRT_PI
+     *     erfcx(z)   =  R(z * M_SQRT_2)   * M_SQRT_2_PI    (= 2 / sqrt(2 pi))
+     *     erfcx'(z)  = -R_1(z * M_SQRT_2) * M_2_SQRT_PI
+     *     erfcx'''(z)= -R_3(z * M_SQRT_2) * 2 * M_2_SQRT_PI
      * Note M_SQRT_2_PI is the reciprocal of M_SQRT2PI_2; kept as its own
      * named constant so erfcx call sites read by intent rather than as a
      * reciprocal. */
