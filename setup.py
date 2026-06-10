@@ -14,6 +14,9 @@ _KERNEL_INCLUDES = [np.get_include(), "src/mathpf", "src/mathpf/_kernels"]
 # internally via the mathpf:: templated names, so mills.cpp is required too).
 _MILLS_SRC    = ["src/mathpf/_kernels/mills.cpp"]
 _MILLS_DD_SRC = ["src/mathpf/_kernels/mills.cpp", "src/mathpf/_kernels/mills_dd.cpp"]
+# erfcx.cpp: erfcx(z) = exp(z^2) erfc(z) and its first derivative; uses mills
+# primitives, so mills.cpp is required too.
+_ERFCX_SRC    = ["src/mathpf/_kernels/mills.cpp", "src/mathpf/_kernels/erfcx.cpp"]
 
 # Disable FMA contraction so the C++ kernel evaluates Horner / multiply-add
 # sequences with the same rounding profile as the Python _pyref implementation
@@ -45,6 +48,13 @@ extensions = [
     Extension(
         name="mathpf.mills_dd",
         sources=["src/mathpf/mills_dd.pyx"] + _MILLS_DD_SRC,
+        include_dirs=_KERNEL_INCLUDES,
+        language="c++",
+        extra_compile_args=_FP_FLAGS,
+    ),
+    Extension(
+        name="mathpf.erfcx",
+        sources=["src/mathpf/erfcx.pyx"] + _ERFCX_SRC,
         include_dirs=_KERNEL_INCLUDES,
         language="c++",
         extra_compile_args=_FP_FLAGS,

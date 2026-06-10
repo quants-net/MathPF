@@ -4,10 +4,10 @@
 #ifndef MATHPF_MILLS_COEF_H
 #define MATHPF_MILLS_COEF_H
 
-inline constexpr double M_SQRT2PI   = 2.5066282746310002;
-inline constexpr double M_SQRT2PI_2 = 1.2533141373155001;  /* R(0) = sqrt(pi/2) */
-inline constexpr double U_MAX       = 1.3407807929942596e+154;  /* sqrt(DBL_MAX); R1/R3 -> 0 beyond */
-inline constexpr double X_NEG_MAX   = -37.5;  /* x < this: R/R1/R3 reflection's exp(x^2/2) overflows; saturate to +inf */
+/* Math / numerical-limit constants moved to _kernels/MathConstants.h:
+ *   M_SQRT2PI, M_SQRT2PI_2 -- 22-sigfig precision via mpmath (was 17 digits here).
+ *   U_MAX, X_NEG_MAX       -- type-dependent (std::numeric_limits<T>::max()).
+ */
 
 /* XCF_R* ladders: lower-edge cutoffs for each CF tier.  XCF_R*[0] is the
  * bridge entry (smallest x in CF region); subsequent entries are tier

@@ -55,15 +55,19 @@ def test_domain_validation():
 
 
 def test_negative_x_saturation():
-    """For x < X_NEG_MAX (=-37.5), the reflection branch's exp(x^2/2) would overflow.
-    R / R1 / R3 saturate to +inf deterministically rather than silently propagating
-    exp's overflow (which still produces +inf, but +inf - finite = +inf or NaN
-    depending on sign and downstream context)."""
+    """For x < X_NEG_MAX = -sqrt(2 log DBL_MAX) ~= -37.68, the reflection
+    branch's exp(x^2/2) would overflow.  R / R1 / R3 saturate to +inf
+    deterministically rather than silently propagating exp's overflow
+    (which still produces +inf, but +inf - finite = +inf or NaN depending
+    on sign and downstream context)."""
+    import math
+    import sys
+    X_NEG_MAX = -math.sqrt(2.0 * math.log(sys.float_info.max))    # ~-37.677
     # Just inside the safe range -- still finite (very large, but well below DBL_MAX)
     for fn in (mathpf.millsratio, mathpf.millsratio_d1, mathpf.millsratio_d3):
         assert np.isfinite(fn(-37.0)), f"{fn.__name__}(-37.0) should be finite (~1e297)"
     # Past the saturation threshold -- explicit +inf
-    for x in (-37.5 - 1e-9, -40.0, -100.0, -1e10):
+    for x in (X_NEG_MAX - 1e-6, -40.0, -100.0, -1e10):
         for fn in (mathpf.millsratio, mathpf.millsratio_d1, mathpf.millsratio_d3):
             v = fn(x)
             assert np.isposinf(v), f"{fn.__name__}({x}) should be +inf, got {v}"

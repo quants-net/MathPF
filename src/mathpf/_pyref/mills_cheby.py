@@ -16,8 +16,11 @@ Coefficients are ascending (constant first); each piece is a Horner evaluation.
 import math, sys
 from array import array
 
-M_SQRT2PI = 2.5066282746310002
-M_SQRT2PI_2 = 1.2533141373155001  # R(0) = sqrt(pi/2) = M_SQRT2PI/2
+M_SQRT2PI = 2.5066282746310007         # sqrt(2 pi),  correctly-rounded fp64
+M_SQRT2PI_2 = 1.2533141373155003       # sqrt(pi / 2),  R(0); correctly-rounded fp64
+# Note: math.sqrt(2*math.pi) returns the *less accurate* 2.5066282746310002
+# (1 ulp below true) because math.pi -> 2*math.pi -> sqrt rounds three times.
+# These values match _kernels/MathConstants.h (mpmath at mp.dps=30).
 XCF_R = (9.5, 11.4, 15.1, 24.1, 59.3, 548.0, 67000000.0)
 NCF_R = (12,   10,    8,    6,    4,   2,    0)        # CF order paired with each XCF_R tier
 # _U_MAX = sqrt(DBL_MAX) ~ 1.34e154.  Past it x*x overflows the quadratic CF
