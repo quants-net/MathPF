@@ -9,7 +9,7 @@
 #include "mills.h"          /* MillsRatio, MillsRatioDeriv3, MillsRatio_CF */
 #include "_mills_coef.h"    /* XCF_R1, XCF_R3 */
 
-QNSPACE
+namespace mathpf
 {
     /* ----------------------------------------------------------------------
      * MillsRatioDiff_CF(x, dx, n_terms) -- cancellation-free divided difference
@@ -108,7 +108,7 @@ QNSPACE
     template double MillsRatioDiff_CF<double>(double, double, int);
     template float  MillsRatioDiff_CF<float>(float, float, int);
 
-}  /* QNSPACE */
+}  /* namespace mathpf */
 
 
 /* --------------------------------------------------------------------------
@@ -118,10 +118,10 @@ QNSPACE
 extern "C" {
 
 double mathpf_MillsRatioDiff(double x, double dx, int theta) {
-    return QuantsNet::MillsRatioDiff<double>(x, dx, theta);
+    return mathpf::MillsRatioDiff<double>(x, dx, theta);
 }
 double mathpf_MillsRatioDiff_CF(double x, double dx, int n_terms) {
-    return QuantsNet::MillsRatioDiff_CF<double>(x, dx, n_terms);
+    return mathpf::MillsRatioDiff_CF<double>(x, dx, n_terms);
 }
 
 }  /* extern "C" */

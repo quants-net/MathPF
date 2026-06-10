@@ -16,20 +16,14 @@
  * MillsRatio_CF) -- include both this header and mills.h to get the full surface.
  * Coefficient data (XCF_R1, XCF_R3 thresholds) lives in _mills_coef.h.
  *
- * Vendoring this file into qna also requires CommonMacro.h, _mills_coef.h, mills.h,
- * and mills.cpp to land in the same directory.
- *
- * NOTE on DLL exports.  As with mills.h, this header does NOT mark declarations
- * with DLLIXP.  The kernel is compiled directly into each consuming Python
- * extension; qna can wrap the declarations with its own DLLIXP-decorated header
- * when vendoring into a DLL build.
+ * Templates live in `namespace mathpf`.  Vendoring this file into another
+ * tree requires _mills_coef.h, mills.h, and mills.cpp to land in the same
+ * directory.
  */
 #ifndef MATHPF_KERNELS_MILLS_DD_H
 #define MATHPF_KERNELS_MILLS_DD_H
 
-#include "CommonMacro.h"  /* QNSPACE alias */
-
-QNSPACE
+namespace mathpf
 {
     template<typename T> T MillsRatioDiff(T x, T dx, int theta);
     template<typename T> T MillsRatioDiff_CF(T x, T dx, int n_terms);

@@ -3,7 +3,7 @@ from setuptools import setup, Extension, find_packages
 from Cython.Build import cythonize
 import numpy as np
 
-# C++ kernels (templated on T in {float, double}, namespace QuantsNet) live under
+# C++ kernels (templated on T in {float, double}, namespace mathpf) live under
 # src/mathpf/_kernels/ and are compiled directly into each consuming Python
 # extension.  Each .so/.pyd carries its own copy of the extern "C" symbols
 # (mathpf_MillsRatio, mathpf_MillsRatioDiff, ...).  No cross-extension dynamic
@@ -11,7 +11,7 @@ import numpy as np
 _KERNEL_INCLUDES = [np.get_include(), "src/mathpf", "src/mathpf/_kernels"]
 # mills.cpp: R, R1, R3, Rrel_below1, R013_CF (Mills primitives).
 # mills_dd.cpp: R_DD, R_DD_CF (symmetric divided differences; uses mills primitives
-# internally via the QuantsNet:: templated names, so mills.cpp is required too).
+# internally via the mathpf:: templated names, so mills.cpp is required too).
 _MILLS_SRC    = ["src/mathpf/_kernels/mills.cpp"]
 _MILLS_DD_SRC = ["src/mathpf/_kernels/mills.cpp", "src/mathpf/_kernels/mills_dd.cpp"]
 

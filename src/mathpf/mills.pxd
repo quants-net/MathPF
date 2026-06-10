@@ -2,7 +2,7 @@
 #   from mathpf.mills cimport _R, _R1, _R3, _R013_CF, _Rrel_below1
 #
 # The kernels themselves are implemented in C++ (src/mathpf/_kernels/mills.cpp,
-# templated on T in {float, double}, namespace QuantsNet) and exposed through
+# templated on T in {float, double}, namespace mathpf) and exposed through
 # the stable extern "C" double-only ABI declared in _kernels/mills.h.  Cython
 # names (_R, _R1, etc.) are name-aliased to the mathpf_* C symbols so that any
 # downstream Cython module continues to `cimport _R` unchanged.

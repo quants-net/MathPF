@@ -15,7 +15,7 @@
 #include <cmath>
 #include <limits>
 
-QNSPACE
+namespace mathpf
 {
     using std::exp;
 
@@ -216,12 +216,12 @@ QNSPACE
     template double MillsRatio_CF<double>(double, int, int);
     template float  MillsRatio_CF<float>(float, int, int);
 
-}  /* QNSPACE */
+}  /* namespace mathpf */
 
 
 /* --------------------------------------------------------------------------
  * extern "C" shims -- stable C ABI for the Cython binding and any other-
- * language FFI.  Double-only by design; forward to the QuantsNet::<>double
+ * language FFI.  Double-only by design; forward to the mathpf::<double>
  * instantiations.  Single-line trampolines; the C++ compiler inlines them.
  *
  * NOTE: no DLLIXP here.  This source file is compiled directly into each
@@ -232,10 +232,10 @@ QNSPACE
  * -------------------------------------------------------------------------- */
 extern "C" {
 
-double mathpf_MillsRatio(double x)              { return QuantsNet::MillsRatio<double>(x); }
-double mathpf_MillsRatioDeriv1(double x)        { return QuantsNet::MillsRatioDeriv1<double>(x); }
-double mathpf_MillsRatioDeriv3(double x)        { return QuantsNet::MillsRatioDeriv3<double>(x); }
-double mathpf_MillsRatioRel_below1(double x)    { return QuantsNet::MillsRatioRel_below1<double>(x); }
-double mathpf_MillsRatio_CF(double xu, int n, int d) { return QuantsNet::MillsRatio_CF<double>(xu, n, d); }
+double mathpf_MillsRatio(double x)              { return mathpf::MillsRatio<double>(x); }
+double mathpf_MillsRatioDeriv1(double x)        { return mathpf::MillsRatioDeriv1<double>(x); }
+double mathpf_MillsRatioDeriv3(double x)        { return mathpf::MillsRatioDeriv3<double>(x); }
+double mathpf_MillsRatioRel_below1(double x)    { return mathpf::MillsRatioRel_below1<double>(x); }
+double mathpf_MillsRatio_CF(double xu, int n, int d) { return mathpf::MillsRatio_CF<double>(xu, n, d); }
 
 }  /* extern "C" */
