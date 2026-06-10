@@ -8,9 +8,17 @@ from __future__ import annotations
 import math
 import numpy as np
 import pytest
-from scipy import special
 
 import mathpf
+
+# scipy is the ground-truth oracle for every test in this module
+# (analytical-identity checks include `special.erfcx(z)` as the reference
+# value).  cibuildwheel's per-wheel test env installs only `test-requires`,
+# so skip the whole module if scipy isn't available rather than declaring
+# it as a heavy test dep across all twelve platform x Python combinations.
+# Local dev sees scipy via `pip install -e ".[dev]" scipy` and runs the full
+# cross-check.
+special = pytest.importorskip("scipy.special", reason="scipy not installed")
 
 
 # Representative grid spanning the dispatch regimes of the underlying Mills
