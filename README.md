@@ -120,6 +120,43 @@ Cross-checked against an mpmath reference at 80-digit precision on a dense grid 
 
 Python reference (`mathpf._pyref`) is bit-equal to the compiled binding via `tests/test_pyref_consistency.py`.
 
+## Comparison vs Jaeckel's "Let's Be Rational" (demo)
+
+The cancellation-free divided difference `R_DD` is the algorithmic counterpart of the two file-scope expansions inside Jaeckel's `lets_be_rational.cpp` for the normalised-Black price-over-vega ratio. They satisfy
+
+```
+b/vega = R(-h-t) - R(-h+t) = 2 t * R_DD(-h, t, +1)
+```
+
+so each Jaeckel expansion matches one `R_DD` branch:
+
+| region | Jaeckel's branch | `R_DD` branch | accuracy |
+|---|---|---|---|
+| `h < -10, h+t < -9.79` (deep OTM) | 17th-order asymptotic series in `q` | CF asymp ladder (`n=2/4/6/8`) or Taylor | both ~eps; AEXP a touch cleaner at the Taylor corner |
+| `-10 ≤ h ≤ 0, t < 0.21` (small `t`) | 12th-order Taylor in `t` | 5-term Taylor seeded by `R'''(x)` | **`R_DD` wins by up to ~8 bits** near `h = -10` |
+
+The small-`t` gap comes from Jaeckel's coefficient `a := 1 + h * Y(h)` (with `Y(h) := Φ(h)/φ(h)`), which suffers cancellation because `Y(h) → -1/h` as `h → -∞`. At `h = -10`, `|a| ~ 1/h² ~ 0.01` — two decimal digits are killed before the series even runs. `R_DD`'s Taylor branch is seeded from `R'''(x)` and descends to `R'(x)` via the cancellation-free `(R₃ + 1) / (x² + 3)` relation, so the offending coefficient never appears.
+
+Worst single cell, inside Jaeckel's actual STEXP dispatch region:
+
+```
+(h, t) = (-9.9, 0.21)            mpmath truth (80 dps)  =  4.16211261009202110e-03
+mathpf.jaeckel.stexp_over_vega(h, t)                   =  4.16211261009172880e-03
+2 t * R_DD(-h, t, +1)                                  =  4.16211261009202110e-03
+
+Jaeckel relerr : 7.03e-14   (~317 eps, ~8 bits lost)
+R_DD    relerr : 0          (bit-exact)
+```
+
+Reproduce on your machine:
+
+```sh
+pip install mathpf[dev]
+python -m mathpf.demos.lbr_vs_mathpf
+```
+
+The demo prints both the AEXP-in-gate and STEXP-in-gate tables and explains the dispatch geometry. `mathpf.jaeckel` also exposes the two ports directly as `mathpf.jaeckel.aexp_over_vega(h, t)` and `mathpf.jaeckel.stexp_over_vega(h, t)` (pure Python, no C++ link) so users can probe further cells of their own choosing.
+
 ## Using the C++ kernels in another project
 
 MathPF's templated C++ kernels are designed to be vendored at the source level. The kernel tree is:
